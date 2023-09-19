@@ -1,0 +1,37 @@
+query Players($gameID: ID!) {
+  game(id: $gameID){    
+    id
+    state {
+      nodes(match: {kinds: "MobileUnit"}) {
+        id
+        annotations {
+          name
+          value
+        }
+            player: node(match: { kinds: "Player" }) {
+            ...SelectedPlayer
+        }
+        location: edge(match: { kinds: "Tile", via: { rel: "Location", key: 1 } }) {
+          ...Location
+        }
+      }
+    }
+  }
+}
+
+fragment Location on Edge {
+    id
+    tile: node {
+        id
+        coords: keys
+    }
+}
+
+fragment SelectedPlayer on Node {
+    ...WorldPlayer
+}
+
+fragment WorldPlayer on Node {
+    id
+    addr: key
+}
