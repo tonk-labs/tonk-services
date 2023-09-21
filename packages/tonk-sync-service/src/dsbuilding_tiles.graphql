@@ -1,0 +1,30 @@
+query DSBuildingTiles($gameID: ID!) {
+    game(id: $gameID) {
+        id
+        name
+        state {
+            nodes(match: {kinds: "Tile"}) {
+                coords: keys
+                building: node(match: { kinds: "Building", via: { rel: "Location", dir: IN } }) {
+                    id
+                        kind: node(match: { kinds: "BuildingKind", via: { rel: "Is" } }) {
+                            ...BuildingKind
+                        }
+                }
+            }
+        }
+    }
+}
+
+fragment BuildingKind on Node {
+    id
+    name: annotation(name: "name") {
+        value
+    }
+    description: annotation(name: "description") {
+        value
+    }
+    model: annotation(name: "model") {
+        value
+    }
+}

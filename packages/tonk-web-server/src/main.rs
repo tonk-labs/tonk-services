@@ -1,9 +1,9 @@
-use actix_web::{get, post, web, App, HttpResponse, HttpRequest, HttpServer, Responder};
+use actix_web::{get, post, web, App, HttpRequest, HttpResponse, HttpServer, Responder};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct TestObject {
-    message: String
+    message: String,
 }
 
 #[get("/")]
@@ -15,7 +15,7 @@ async fn hello() -> impl Responder {
 async fn test(item: web::Json<TestObject>, req: HttpRequest) -> HttpResponse {
     println!("request: {req:?}");
     println!("model: {item:?}");
-    
+
     HttpResponse::Ok().json("Nothing")
 }
 
@@ -27,7 +27,7 @@ async fn main() -> std::io::Result<()> {
             .service(hello)
             .service(test)
     })
-    .bind(("127.0.0.1", 8081))?
+    .bind(("0.0.0.0", 8081))?
     .run()
     .await
 }

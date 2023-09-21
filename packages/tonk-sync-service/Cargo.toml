@@ -15,3 +15,4 @@ reqwest = "0.11.20"
 serde = { version = "1.0.188", features = ["derive", "serde_derive"] }
 tokio = { version = "1.32.0", features = ["rt-multi-thread", "macros"] }
 tokio-cron-scheduler = "0.9.4"
+tonk-shared-lib = { path = "../tonk-shared-lib" }

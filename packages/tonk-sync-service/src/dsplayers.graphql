@@ -1,4 +1,4 @@
-query Players($gameID: ID!) {
+query DSPlayers($gameID: ID!) {
   game(id: $gameID){    
     id
     state {

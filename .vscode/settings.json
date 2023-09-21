@@ -1,0 +1,7 @@
+{
+    "rust-analyzer.linkedProjects": [
+        "packages/tonk-shared-lib/Cargo.toml",
+        "packages/tonk-sync-service/Cargo.toml",
+        "packages/tonk-web-server/Cargo.toml",
+    ],
+}
