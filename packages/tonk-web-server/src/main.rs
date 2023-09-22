@@ -1,31 +1,22 @@
-use actix_web::{get, post, web, App, HttpRequest, HttpResponse, HttpServer, Responder};
-use serde::{Deserialize, Serialize};
+use actix_web::{web, get, App, HttpResponse, HttpServer, Responder};
+use dotenv::dotenv;
 
-#[derive(Debug, Serialize, Deserialize)]
-struct TestObject {
-    message: String,
-}
+mod app_config;
+mod common;
+mod handlers;
 
-#[get("/")]
+#[get("/ping")]
 async fn hello() -> impl Responder {
-    HttpResponse::Ok().body("Hello world!")
-}
-
-#[post("/test")]
-async fn test(item: web::Json<TestObject>, req: HttpRequest) -> HttpResponse {
-    println!("request: {req:?}");
-    println!("model: {item:?}");
-
-    HttpResponse::Ok().json("Nothing")
+    HttpResponse::Ok().body("pong")
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    dotenv().ok();
     HttpServer::new(|| {
         App::new()
             .app_data(web::JsonConfig::default().limit(4096))
-            .service(hello)
-            .service(test)
+            .configure(app_config::config)
     })
     .bind(("0.0.0.0", 8081))?
     .run()
