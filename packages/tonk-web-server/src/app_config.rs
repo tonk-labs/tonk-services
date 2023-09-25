@@ -1,5 +1,5 @@
 use actix_web::web;
-use crate::handlers::{action, game, player, building, task};
+use crate::handlers::{action, game, player, building, task, vote};
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg
@@ -50,5 +50,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                     .route(web::post().to(task::post_task))
                     .route(web::get().to(task::get_task))
             )
+    ).service(
+        web::resource("/vote")
+            .route(web::post().to(vote::post_vote))
     );
 }

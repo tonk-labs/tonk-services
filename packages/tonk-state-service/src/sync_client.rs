@@ -49,8 +49,8 @@ impl SyncClient {
                 let player_binary: Result<Vec<u8>, redis::RedisError> = con.get(&player_key);
                 let mut player: Player = Player {
                     id: "".to_string(),
-                    is_near_building: None,
-                    is_near_player: None,
+                    nearby_buildings: None,
+                    nearby_players: None,
                     display_name: None,
                     secret_key: None,
                     location: None
@@ -77,8 +77,8 @@ impl SyncClient {
                 );
                 let pstruct = Player {
                     id: id.to_string(),
-                    is_near_player: None, //TODO: implement 
-                    is_near_building: None, //TODO: implement 
+                    nearby_buildings: None, //TODO: implement 
+                    nearby_players: None, //TODO: implement 
                     location: Some(location_coords),
                     display_name: player.display_name,
                     secret_key: player.secret_key

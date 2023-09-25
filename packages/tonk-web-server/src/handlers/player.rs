@@ -10,8 +10,8 @@ pub struct PlayerQuery {
 pub async fn get_player(_id: web::Path<String>, _query: web::Query<PlayerQuery>) -> Result<HttpResponse, Error> {
     Ok(HttpResponse::Ok().json(Player {
         id: _id.to_string(),
-        is_near_building: None,
-        is_near_player: None,
+        nearby_buildings: None,
+        nearby_players: None,
         display_name: None,
         secret_key: None,
         location: None

@@ -2,7 +2,6 @@ use std::error::Error;
 use redis::{AsyncCommands, RedisResult, aio::Connection, RedisError};
 use bincode::{Decode, Encode};
 use tonk_shared_lib::{deserialize_struct, serialize_struct};
-use futures::stream::StreamExt;
 
 async fn get_connection() -> RedisResult<Connection> {
     let client = redis::Client::open("redis://127.0.0.1/")?;
@@ -11,6 +10,27 @@ async fn get_connection() -> RedisResult<Connection> {
 
 pub struct RedisHelper {
     con: Connection
+}
+
+#[derive(Debug)]
+pub enum RedisHelperError {
+    MissingKey
+} 
+
+impl std::error::Error for RedisHelperError {
+    fn description(&self) -> &str {
+        match self {
+            RedisHelperError::MissingKey => "Error: object is missing from the state",
+        }
+    }
+}
+
+impl std::fmt::Display for RedisHelperError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            RedisHelperError::MissingKey => write!(f, "Error: object is missing from the state")
+        }
+    }
 }
 
 impl RedisHelper {
@@ -22,6 +42,10 @@ impl RedisHelper {
     }
 
     pub async fn get_key<T: Decode>(&mut self, key: &str) -> Result<T, Box<dyn Error>> {
+        let exists: bool = self.con.exists(key).await?;
+        if !exists {
+            return Err(Box::new(RedisHelperError::MissingKey));
+        }
         let result: Vec<u8> = self.con.get(key).await?;
         let deserialized = deserialize_struct(&result)?;
         Ok(deserialized)
@@ -33,8 +57,9 @@ impl RedisHelper {
         Ok(())
     }
 
-    pub async fn set_index(&mut self, index: &str, key: &str) -> Result<(), redis::RedisError> {
-        self.con.sadd(index, key).await
+    pub async fn set_index(&mut self, index: &str, key: &str) -> Result<(), Box<dyn Error>> {
+        let _ = self.con.sadd(index, key).await?;
+        Ok(())
     }
 
     pub async fn get_index<T: Decode>(&mut self, index: &str) -> Result<Vec<T>, Box<dyn Error>> {

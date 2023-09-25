@@ -1,32 +1,32 @@
 use bincode::{config, Decode, Encode};
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Encode, Decode, Clone, PartialEq, Debug)]
 pub enum GameStatus {
     Null, Lobby, Tasks, Vote, End
 }
 
-#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
 pub struct Location(pub String, pub String, pub String, pub String);
 
-#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
 pub struct Player {
     pub id: String,
-    pub is_near_player: Option<Vec<Player>>,
-    pub is_near_building: Option<Vec<Building>>,
+    pub nearby_players: Option<Vec<Player>>,
+    pub nearby_buildings: Option<Vec<Building>>,
     pub display_name: Option<String>,
     pub secret_key: Option<String>,
     pub location: Option<Location>
 }
 
-#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
 pub struct Building {
     pub id: String,
     pub location: Option<Location>,
     pub is_tower: bool
 }
 
-#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
 pub struct Game {
     pub id: String,
     pub status: GameStatus,
@@ -34,32 +34,32 @@ pub struct Game {
     pub players: Option<Vec<Player>>
 }
 
-#[derive(Encode, Decode, Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Encode, Decode, Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct Task {
     pub assignee: Player,
-    pub destination: Building ,
+    pub destination: Building,
     pub round: u32,
+    pub complete: bool
 }
 
-#[derive(Encode, Decode, Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Encode, Decode, Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct Action {
     pub poison_target: Player,
-    pub round: u32,
+    pub round: u32
 }
 
-#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
 pub struct Vote {
-    pub voter: Player,
     pub candidate: Player
 }
 
-#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
 pub struct Time {
     pub round: u32,
     pub timer: u32
 }
 
-#[derive(Encode, Decode, PartialEq, Debug)]
+#[derive(Encode, Decode, PartialEq, Clone, Debug)]
 pub struct GameState {
     pub id: String,
     pub players: Vec<Player>,
