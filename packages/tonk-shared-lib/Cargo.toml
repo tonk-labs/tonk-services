@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 bincode = { version = "2.0.0-rc.3" }
+serde = { version = "1.0.188", features = ["derive"] }
 

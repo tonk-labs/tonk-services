@@ -1,9 +1,9 @@
 use graphql_client::{reqwest::post_graphql, GraphQLQuery};
 use log::*;
 use num_bigint::BigInt;
-use redis::{Commands, ToRedisArgs};
+use redis::{Commands, ToRedisArgs, RedisResult};
 use reqwest;
-use tonk_shared_lib::{deserialize_struct, serialize_struct, Building, Location, Player};
+use tonk_shared_lib::{deserialize_struct, serialize_struct, Building, Location, Player, Game, GameStatus};
 
 #[derive(GraphQLQuery, Debug)]
 #[graphql(schema_path = "schema.json", query_path = "src/dsplayers.graphql")]
@@ -27,6 +27,7 @@ impl SyncClient {
         };
         sync_client
     }
+
     pub async fn get_players(
         &self,
         con: &mut redis::Connection,
@@ -40,8 +41,26 @@ impl SyncClient {
         for entry in &res.data.unwrap().game.state.nodes {
             if let (Some(player), Some(location)) = (&entry.player, &entry.location) {
                 // Do something with `player` and `location`
+                
 
                 let id = player.id.as_str();
+
+                let player_key = format!("player:{}", id);
+                let player_binary: Result<Vec<u8>, redis::RedisError> = con.get(&player_key);
+                let mut player: Player = Player {
+                    id: "".to_string(),
+                    is_near_building: None,
+                    is_near_player: None,
+                    display_name: None,
+                    secret_key: None,
+                    location: None
+                };
+                let exists = player_binary.is_ok();
+
+                if exists {
+                    player = deserialize_struct(player_binary.as_ref().unwrap())?;
+                }
+
                 let location_coords = Location(
                     location.tile.coords[0].to_string(),
                     location.tile.coords[1].to_string(),
@@ -58,17 +77,24 @@ impl SyncClient {
                 );
                 let pstruct = Player {
                     id: id.to_string(),
-                    location: location_coords,
+                    is_near_player: None, //TODO: implement 
+                    is_near_building: None, //TODO: implement 
+                    location: Some(location_coords),
+                    display_name: player.display_name,
+                    secret_key: player.secret_key
                 };
 
-                let serialized_player = serialize_struct(pstruct);
-                let key = format!("player:{}", id);
+                let serialized_player = serialize_struct(&pstruct)?;
+                let _: () = con.set(&player_key, serialized_player)?;
 
-                let _: () = con.set(key, serialized_player)?;
+                if !exists {
+                    con.sadd("player:index", &player_key)?;
+                }
             }
         }
         Ok(())
     }
+
 
     // What to do for the buildings?
     // Presumably, these aren't going to move

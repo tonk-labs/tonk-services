@@ -9,3 +9,7 @@ edition = "2021"
 actix-web = "4.4.0"
 dotenv = "0.15.0"
 serde = { version = "1.0.188", features = ["derive"] }
+tonk-shared-lib = { path = "../tonk-shared-lib" }
+redis = { version = "0.23.3", features = [ "json", "aio", "tokio-comp" ] }
+bincode = { version = "2.0.0-rc.3" }
+futures = "0.3.28"

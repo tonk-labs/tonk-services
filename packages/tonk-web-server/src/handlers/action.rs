@@ -1,7 +1,7 @@
 use actix_web::{web, Error, HttpResponse, HttpRequest};
-use crate::common::Action;
+use tonk_shared_lib::Action;
 
-pub async fn post_action(_id: web::Json<Action>, req: HttpRequest) -> HttpResponse {
+pub async fn post_action(_id: web::Json<Action>, req: HttpRequest) -> Result<HttpResponse, Error> {
     // req.path().split('/').last()
-    HttpResponse::Ok().json(_id.message.as_str())
+    Ok(HttpResponse::Ok().finish())
 }

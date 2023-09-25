@@ -1,5 +1,5 @@
 use actix_web::web;
-use crate::handlers::{action, game, player, building};
+use crate::handlers::{action, game, player, building, task};
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg
@@ -24,13 +24,31 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 web::resource("")
                     .route(web::get().to(game::get_game))
                     .route(web::post().to(game::post_game))
-                    .route(web::put().to(game::put_game))
+            )
+            .service(
+                web::scope("/{game_id}")
+                    .service(
+                        web::resource("/player")
+                            .route(web::get().to(game::get_game_players))
+                            .route(web::post().to(game::post_player))
+                    )
+                    .service(
+                        web::resource("/time")
+                            .route(web::get().to(game::get_time))
+                    )
             )
     ).service(
         web::scope("/action")
             .service(
                 web::resource("")
                     .route(web::post().to(action::post_action))
+            )
+    ).service(
+        web::scope("/task")
+            .service(
+                web::resource("")
+                    .route(web::post().to(task::post_task))
+                    .route(web::get().to(task::get_task))
             )
     );
 }

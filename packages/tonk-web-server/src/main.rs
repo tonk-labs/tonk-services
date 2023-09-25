@@ -2,8 +2,8 @@ use actix_web::{web, get, App, HttpResponse, HttpServer, Responder};
 use dotenv::dotenv;
 
 mod app_config;
-mod common;
 mod handlers;
+mod redis_helper;
 
 #[get("/ping")]
 async fn hello() -> impl Responder {
@@ -18,7 +18,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::JsonConfig::default().limit(4096))
             .configure(app_config::config)
     })
-    .bind(("0.0.0.0", 8081))?
+    .bind(("0.0.0.0", 8082))?
     .run()
     .await
 }

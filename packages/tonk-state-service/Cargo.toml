@@ -1,5 +1,5 @@
 [package]
-name = "tonk-sync-service"
+name = "tonk-state-service"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,9 +10,10 @@ env_logger = "0.10.0"
 graphql_client = { version = "0.13.0", features = ["reqwest"] }
 log = "0.4.20"
 num-bigint = { version = "0.4.4", features = ["serde"] }
-redis = { version = "0.23.3", features = ["tokio-comp", "json" ] }
+redis = { version = "0.23.3", features = [ "json" ] }
 reqwest = "0.11.20"
 serde = { version = "1.0.188", features = ["derive", "serde_derive"] }
 tokio = { version = "1.32.0", features = ["rt-multi-thread", "macros"] }
 tokio-cron-scheduler = "0.9.4"
 tonk-shared-lib = { path = "../tonk-shared-lib" }
+uuid = { version = "1.4.1", features = ["v4"] }

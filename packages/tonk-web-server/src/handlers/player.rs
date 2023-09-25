@@ -1,16 +1,19 @@
 use actix_web::{web, Error, HttpResponse};
-use crate::common::PlayerQuery;
+use tonk_shared_lib::Player;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Player {
-    id: String,
-    query: String 
+pub struct PlayerQuery {
+    secret_key: String
 }
 
 pub async fn get_player(_id: web::Path<String>, _query: web::Query<PlayerQuery>) -> Result<HttpResponse, Error> {
     Ok(HttpResponse::Ok().json(Player {
         id: _id.to_string(),
-        query: _query.privateKey.clone()
+        is_near_building: None,
+        is_near_player: None,
+        display_name: None,
+        secret_key: None,
+        location: None
     }))
 }
