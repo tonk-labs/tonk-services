@@ -1,9 +1,11 @@
 use bincode::{config, Decode, Encode};
 use serde::{Deserialize, Serialize};
 
+pub mod redis_helper;
+
 #[derive(Serialize, Deserialize, Encode, Decode, Clone, PartialEq, Debug)]
 pub enum GameStatus {
-    Null, Lobby, Tasks, Vote, End
+    Null, Lobby, Tasks, TaskResult, Vote, VoteResult, End
 }
 
 #[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
@@ -31,7 +33,6 @@ pub struct Game {
     pub id: String,
     pub status: GameStatus,
     pub time: Option<Time>,
-    pub players: Option<Vec<Player>>
 }
 
 #[derive(Encode, Decode, Serialize, Deserialize, PartialEq, Clone, Debug)]
@@ -51,6 +52,13 @@ pub struct Action {
 #[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
 pub struct Vote {
     pub candidate: Player
+}
+
+#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
+pub struct RoundResult {
+    round_type: GameStatus,
+    eliminated: Option<Vec<Player>>,
+    tasks_completed: Option<Vec<Task>>
 }
 
 #[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]

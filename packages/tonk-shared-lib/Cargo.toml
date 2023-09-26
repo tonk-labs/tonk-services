@@ -8,4 +8,6 @@ edition = "2021"
 [dependencies]
 bincode = { version = "2.0.0-rc.3" }
 serde = { version = "1.0.188", features = ["derive"] }
+redis = { version = "0.23.3", features = [ "json", "aio", "tokio-comp" ] }
+tokio = { version = "1.32.0", features = [ "sync" ] }
 

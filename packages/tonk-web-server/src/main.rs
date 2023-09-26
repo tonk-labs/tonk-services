@@ -3,7 +3,6 @@ use dotenv::dotenv;
 
 mod app_config;
 mod handlers;
-mod redis_helper;
 
 #[get("/ping")]
 async fn hello() -> impl Responder {

@@ -1,7 +1,7 @@
 use actix_web::{web, Error, HttpResponse, HttpRequest};
 use tonk_shared_lib::{Vote, Game, Player, GameStatus};
 use serde::{Deserialize, Serialize};
-use crate::redis_helper::*;
+use tonk_shared_lib::redis_helper::*;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct VoteQuery {
@@ -15,7 +15,9 @@ pub async fn post_vote(_id: web::Json<Vote>, _query: web::Query<VoteQuery>, req:
         actix_web::error::ErrorInternalServerError(e)
     })?;
 
-    let game: Game = redis.get_key("game").await?;
+    let game: Game = redis.get_key("game").await.map_err(|e| {
+        actix_web::error::ErrorInternalServerError("Unknown error")
+    })?;
     let round = game.time.unwrap().round;
     if game.status != GameStatus::Vote {
         return Err(actix_web::error::ErrorForbidden("The game is not in the voting round"));
@@ -30,8 +32,12 @@ pub async fn post_vote(_id: web::Json<Vote>, _query: web::Query<VoteQuery>, req:
 
     let exists: Result<Vote, _> = redis.get_key(&vote_key).await;
     if exists.is_err() {
-        let _ = redis.set_key(&vote_key, &vote).await?;
-        redis.set_index("game:votes", &vote_key).await?;
+        let _ = redis.set_key(&vote_key, &vote).await.map_err(|e| {
+            actix_web::error::ErrorInternalServerError("Unknown error")
+        })?;
+        redis.set_index("game:votes", &vote_key).await.map_err(|e| {
+            actix_web::error::ErrorInternalServerError("Unknown error")
+        })?;
     } else {
         return Err(actix_web::error::ErrorForbidden("You have already made your vote this round"));
     }

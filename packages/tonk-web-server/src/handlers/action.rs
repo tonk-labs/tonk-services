@@ -1,7 +1,7 @@
 use actix_web::{web, Error, HttpResponse, HttpRequest};
 use tonk_shared_lib::{Game, Player, Action, GameStatus, GameState};
+use tonk_shared_lib::redis_helper::*;
 use serde::{Deserialize, Serialize};
-use crate::redis_helper::*;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ActionQuery {
@@ -16,8 +16,12 @@ pub async fn post_action(_id: web::Json<Action>, _query: web::Query<ActionQuery>
     })?;
 
     let action = _id.0;
-    let game: Game = redis.get_key("game").await?;
-    let game_state: GameState = redis.get_key("game:state").await?;
+    let game: Game = redis.get_key("game").await.map_err(|e| {
+        actix_web::error::ErrorInternalServerError("Unknown error")
+    })?;
+    let game_state: GameState = redis.get_key("game:state").await.map_err(|e| {
+        actix_web::error::ErrorInternalServerError("Unknown error")
+    })?;
     let round = game.time.unwrap().round;
     if round != action.round {
         return Err(actix_web::error::ErrorBadRequest("Improper round in request"));
@@ -28,7 +32,9 @@ pub async fn post_action(_id: web::Json<Action>, _query: web::Query<ActionQuery>
     
     let player_id = &_query.player_id;
     let player_key = format!("player:{}", player_id);
-    let player: Player = redis.get_key(&player_key).await?;
+    let player: Player = redis.get_key(&player_key).await.map_err(|e| {
+        actix_web::error::ErrorInternalServerError("Unknown error")
+    })?;
 
     let found_player = game_state.bugged_players.iter().find(|e| {
         e.id == player_id.clone()
@@ -48,8 +54,12 @@ pub async fn post_action(_id: web::Json<Action>, _query: web::Query<ActionQuery>
     let action_key = format!("action:{}:{}", game.id, round);
     let exists: Result<Action, _> = redis.get_key(&action_key).await;
     if exists.is_err() {
-        let _ = redis.set_key(&action_key, &action).await?;
-        redis.set_index("game:actions", &action_key).await?;
+        let _ = redis.set_key(&action_key, &action).await.map_err(|e| {
+            actix_web::error::ErrorInternalServerError("Unknown error")
+        })?;
+        redis.set_index("game:actions", &action_key).await.map_err(|e| {
+            actix_web::error::ErrorInternalServerError("Unknown error")
+        })?;
     } else {
         return Err(actix_web::error::ErrorForbidden("You have already taken an action this round"));
     }

@@ -14,3 +14,4 @@ redis = { version = "0.23.3", features = [ "json", "aio", "tokio-comp" ] }
 bincode = { version = "2.0.0-rc.3" }
 futures = "0.3.28"
 rand = "0.8.5"
+ethers-rs = "0.2.3"

@@ -1,11 +1,11 @@
 use actix_web::{web, HttpResponse, Error};
 use tonk_shared_lib::Building;
-use crate::redis_helper::*;
+use tonk_shared_lib::redis_helper::*;
 
 pub async fn post_building(_id: web::Json<Building>) -> Result<HttpResponse, Error> {
     let building = _id.0;
     let key = format!("building:{}", building.id);
-    let mut redis = RedisHelper::init().await.map_err(|e| {
+    let redis = RedisHelper::init().await.map_err(|e| {
         actix_web::error::ErrorInternalServerError(e)
     })?;
     let exists: Result<Building, _> = redis.get_key(&key).await;
