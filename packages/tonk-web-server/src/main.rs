@@ -1,4 +1,5 @@
-use actix_web::{web, get, App, HttpResponse, HttpServer, Responder};
+use actix_web::{http::header, get, App, HttpResponse, HttpServer, Responder};
+use actix_cors::Cors;
 use dotenv::dotenv;
 
 mod app_config;
@@ -14,7 +15,15 @@ async fn main() -> std::io::Result<()> {
     dotenv().ok();
     HttpServer::new(|| {
         App::new()
-            .app_data(web::JsonConfig::default().limit(4096))
+            .wrap(
+                Cors::default()
+                    .allowed_origin("http://localhost:3000")
+                    .allowed_methods(vec!["GET", "POST", "PUT"])
+                    .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
+                    .allowed_header(header::CONTENT_TYPE)
+                    .supports_credentials()
+                    .max_age(3600),
+            )
             .configure(app_config::config)
     })
     .bind(("0.0.0.0", 8082))?
