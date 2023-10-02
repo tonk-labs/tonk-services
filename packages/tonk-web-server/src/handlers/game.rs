@@ -37,7 +37,7 @@ pub async fn post_game() -> Result<HttpResponse, Error> {
                 actix_web::error::ErrorInternalServerError("unknown error")
             })?;
 
-            if players.len() < 3 {
+            if players.len() < 2 {
                 return Err(actix_web::error::ErrorForbidden("More players need to join the game before we can start"));
             }
 

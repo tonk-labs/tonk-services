@@ -2,7 +2,7 @@ use actix_web::{web, Error, HttpResponse};
 use tonk_shared_lib::Player;
 use serde::{Deserialize, Serialize};
 use tonk_shared_lib::redis_helper::*;
-use ethers_rs::{H256, keccak256};
+// use ethers_rs::{H256, keccak256};
 
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -12,7 +12,7 @@ pub struct PlayerQuery {
 }
 
 // Used to establish a new player and is registered by the tonk item
-pub async fn post_player(_path: web::Path<String>) -> Result<HttpResponse, Error> {
+pub async fn post_player(_id: web::Json<Player>, _path: web::Path<String>) -> Result<HttpResponse, Error> {
     // check if the player already exists
     let redis = RedisHelper::init().await.map_err(|e| {
         actix_web::error::ErrorInternalServerError(e)
@@ -21,6 +21,8 @@ pub async fn post_player(_path: web::Path<String>) -> Result<HttpResponse, Error
     // let onchain_hash = _query.onchain_hash.as_str().clone();
     // let secret = _query.secret_key.as_str().clone();
     // we need to double check here the onchain_hash is actually the same
+
+    let player_obj = _id.0.clone();
 
     let player_key = format!("player:{}", _path.to_string());
     let player: Result<Player, _> = redis.get_key(&player_key).await;
@@ -38,7 +40,8 @@ pub async fn post_player(_path: web::Path<String>) -> Result<HttpResponse, Error
                 id: _path.to_string(),
                 nearby_buildings: None,
                 nearby_players: None,
-                display_name: None,
+                mobile_unit_id: player_obj.mobile_unit_id,
+                display_name: player_obj.display_name,
                 // secret_key: Some(secret.clone().to_string()),
                 secret_key: None,
                 location: None,
@@ -69,6 +72,7 @@ pub async fn get_player(_id: web::Path<String>) -> Result<HttpResponse, Error> {
             nearby_buildings: None,
             nearby_players: None,
             display_name: None,
+            mobile_unit_id: None,
             secret_key: None,
             location: None
         }))

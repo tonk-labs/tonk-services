@@ -3,6 +3,7 @@ use tonk_shared_lib::Building;
 use tonk_shared_lib::redis_helper::*;
 
 pub async fn post_building(_id: web::Json<Building>) -> Result<HttpResponse, Error> {
+    //TODO check or admin key
     let building = _id.0;
     let key = format!("building:{}", building.id);
     let redis = RedisHelper::init().await.map_err(|e| {

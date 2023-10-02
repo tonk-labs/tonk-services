@@ -7,6 +7,7 @@ use tonk_shared_lib::redis_helper::*;
 use crate::jobs::sync_graph::SyncGraph;
 use crate::jobs::clock::Clock;
 use crate::jobs::game_state::GameState;
+use log::*;
 
 // fn initialize_game_state() -> Result<(), Box<dyn std::error::Error>> {
 //     // if we do this on the startup of state-service then better to just
@@ -42,14 +43,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let sync_graph = SyncGraph::new().await?;
     // let shared_client = Arc::new(sync_graph).clone();
 
-    // // initialize_game_state()?;
+    // initialize_game_state()?;
 
     // sched
     //     .add(Job::new_async("1/2 * * * * *", move |_, _| {
     //         Box::pin(async move {
     //             if let Ok(redis) = RedisHelper::init().await {
     //                 let sync_graph = SyncGraph::new(redis);
-    //                 let _ = sync_graph.run().await;
+    //                 let r = sync_graph.run().await;
+    //                 if r.is_err() {
+    //                     info!("{}", r.err().unwrap());
+    //                 }
     //             }
     //         })
     //     })?)

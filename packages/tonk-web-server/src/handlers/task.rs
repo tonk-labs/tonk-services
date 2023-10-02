@@ -49,7 +49,7 @@ pub async fn get_task(_query: web::Query<TaskQuery>, req: HttpRequest) -> Result
         Err(RedisHelperError::MissingKey) => {
             let depot = get_random_depot(redis.borrow_mut()).await?;
             let random_task = Task {
-                assignee: Player { id: player_id.clone(), nearby_buildings: None, nearby_players: None, display_name: None, secret_key: None, location: None },
+                assignee: Player { id: player_id.clone(), nearby_buildings: None, nearby_players: None, display_name: None, mobile_unit_id: None, secret_key: None, location: None },
                 destination: depot,
                 round: round,
                 complete: false

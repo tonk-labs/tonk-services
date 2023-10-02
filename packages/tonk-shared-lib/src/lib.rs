@@ -14,9 +14,10 @@ pub struct Location(pub String, pub String, pub String, pub String);
 #[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
 pub struct Player {
     pub id: String,
+    pub mobile_unit_id: Option<String>,
+    pub display_name: Option<String>,
     pub nearby_players: Option<Vec<Player>>,
     pub nearby_buildings: Option<Vec<Building>>,
-    pub display_name: Option<String>,
     pub secret_key: Option<String>,
     pub location: Option<Location>
 }
