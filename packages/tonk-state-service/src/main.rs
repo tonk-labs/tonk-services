@@ -45,19 +45,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // initialize_game_state()?;
 
-    // sched
-    //     .add(Job::new_async("1/2 * * * * *", move |_, _| {
-    //         Box::pin(async move {
-    //             if let Ok(redis) = RedisHelper::init().await {
-    //                 let sync_graph = SyncGraph::new(redis);
-    //                 let r = sync_graph.run().await;
-    //                 if r.is_err() {
-    //                     info!("{}", r.err().unwrap());
-    //                 }
-    //             }
-    //         })
-    //     })?)
-    //     .await?;
+    sched
+        .add(Job::new_async("1/2 * * * * *", move |_, _| {
+            Box::pin(async move {
+                if let Ok(redis) = RedisHelper::init().await {
+                    let sync_graph = SyncGraph::new(redis);
+                    let r = sync_graph.run().await;
+                    if r.is_err() {
+                        info!("{}", r.err().unwrap());
+                    }
+                }
+            })
+        })?)
+        .await?;
 
     sched
         .add(Job::new_async("*/1 * * * * *", move |_, _| {

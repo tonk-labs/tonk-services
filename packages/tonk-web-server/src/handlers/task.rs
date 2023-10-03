@@ -1,7 +1,8 @@
 use std::borrow::BorrowMut;
 
 use actix_web::{web, Error, HttpResponse, HttpRequest};
-use tonk_shared_lib::{Task, Building, Game, Player, GameStatus};
+use futures::io::empty;
+use tonk_shared_lib::{Task, Building, Game, Player, GameStatus, Role};
 use serde::{Deserialize, Serialize};
 use tonk_shared_lib::redis_helper::*;
 use rand::Rng;
@@ -39,6 +40,19 @@ pub async fn get_task(_query: web::Query<TaskQuery>, req: HttpRequest) -> Result
         return Err(actix_web::error::ErrorForbidden("The game is not in the task round"));
     }
     let player_id = &_query.player_id;
+    let player_key = format!("player:{}", player_id);
+    let player: Player = redis.get_key(&player_key).await.map_err(|e| {
+        actix_web::error::ErrorInternalServerError("Unknown error")
+    })?;
+    if *player.role.as_ref().unwrap() == Role::Bugged {
+        let empty_task = Task {
+            assignee: player.clone(),
+            destination: Building { id: "".to_string(), location: None, task_message: "You are a bug and hunger to bug out others".to_string(), is_tower: false },
+            round: game.time.as_ref().unwrap().round.clone(),
+            complete: false
+        };
+        return Ok(HttpResponse::Ok().json(empty_task));
+    }
     let round = game.time.unwrap().round;
     let task_key = format!("task:{}:{}:{}", game.id, round, player_id);
     let task_result: Result<Task, RedisHelperError> = redis.get_key(&task_key).await;
@@ -49,7 +63,16 @@ pub async fn get_task(_query: web::Query<TaskQuery>, req: HttpRequest) -> Result
         Err(RedisHelperError::MissingKey) => {
             let depot = get_random_depot(redis.borrow_mut()).await?;
             let random_task = Task {
-                assignee: Player { id: player_id.clone(), nearby_buildings: None, nearby_players: None, display_name: None, mobile_unit_id: None, secret_key: None, location: None },
+                assignee: Player { 
+                    id: player_id.clone(), 
+                    nearby_buildings: None, 
+                    nearby_players: None, 
+                    used_action: None,
+                    display_name: None, 
+                    mobile_unit_id: None, 
+                    secret_key: None, 
+                    role: None,
+                    location: None },
                 destination: depot,
                 round: round,
                 complete: false

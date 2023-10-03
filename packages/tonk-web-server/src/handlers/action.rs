@@ -36,6 +36,10 @@ pub async fn post_action(_id: web::Json<Action>, _query: web::Query<ActionQuery>
         actix_web::error::ErrorInternalServerError("Unknown error")
     })?;
 
+    if *player.used_action.as_ref().unwrap() {
+        return Err(actix_web::error::ErrorForbidden("You have already taken an action this round"));
+    }
+
     let found_player = game_state.bugged_players.iter().find(|e| {
         e.id == player_id.clone()
     });
@@ -51,7 +55,7 @@ pub async fn post_action(_id: web::Json<Action>, _query: web::Query<ActionQuery>
         return Err(actix_web::error::ErrorForbidden("The target is not within range"));
     }
 
-    let action_key = format!("action:{}:{}", game.id, round);
+    let action_key = format!("action:{}:{}:{}", game.id, round, player.id);
     let exists: Result<Action, _> = redis.get_key(&action_key).await;
     if exists.is_err() {
         let _ = redis.set_key(&action_key, &action).await.map_err(|e| {

@@ -1,6 +1,8 @@
 use actix_web::{web, Error, HttpResponse, HttpRequest};
-use tonk_shared_lib::{Game, Player, deserialize_struct, GameStatus, serialize_struct, Building};
+use tonk_shared_lib::{Game, Player, deserialize_struct, GameStatus, serialize_struct, Building, Role, RoundResult};
 use tonk_shared_lib::redis_helper::*;
+use rand::{Rng, thread_rng};
+use rand::seq::SliceRandom;
 
 // START GAME
 // CALL PUT WITHOUT ANY DATA 
@@ -41,6 +43,31 @@ pub async fn post_game() -> Result<HttpResponse, Error> {
                 return Err(actix_web::error::ErrorForbidden("More players need to join the game before we can start"));
             }
 
+            let mut n = (players.len() as f64 * 0.2).round() as usize;
+            if n == 0 {
+                n = 1;
+            }
+            let mut rng = rand::thread_rng();
+            let indices: Vec<usize> = (0..players.len()).collect();
+            let sampled_indices: Vec<_> = indices.choose_multiple(&mut rng, n).cloned().collect();
+
+            let mut new_players: Vec<Player> = Vec::new();
+            // Step 2: Traverse and modify
+            for i in 0..players.len() {
+                let mut newp = players[i].clone();
+                if sampled_indices.contains(&i) {
+                    newp.role = Some(Role::Bugged);
+                } else {
+                    newp.role = Some(Role::Normal);
+                }
+                new_players.push(newp);
+            }
+
+            for player in new_players {
+                let player_key = format!("player:{}", player.id.to_string());
+                let _ = redis.set_key(&player_key, &player).await;
+            }
+
             // give tasks to all the players
             // update status
             current_game.status = GameStatus::Tasks;
@@ -55,10 +82,6 @@ pub async fn post_game() -> Result<HttpResponse, Error> {
             Err(actix_web::error::ErrorInternalServerError("If you are seeing this error, the game is likely in a corrupted state"))
         }
     }
-}
-
-pub async fn get_time() -> Result<HttpResponse, Error> {
-    Ok(HttpResponse::Ok().finish())
 }
 
 // GET STATUS OF GAME
@@ -144,4 +167,20 @@ pub async fn post_player(_id: web::Json<Player>) -> Result<HttpResponse, Error> 
     //         }
     //     }
     // }
+}
+
+pub async fn get_result() -> Result<HttpResponse, Error> {
+    let redis = RedisHelper::init().await.map_err(|e| {
+        actix_web::error::ErrorInternalServerError(e)
+    })?;
+    let game: Game = redis.get_key("game").await.map_err(|_| { 
+        actix_web::error::ErrorInternalServerError("unknown error")
+    })?;
+
+    let result_key = format!("game:{}:result", game.id);
+    let result: RoundResult = redis.get_key(&result_key).await.map_err(|_| {
+        actix_web::error::ErrorInternalServerError("unknown error")
+    })?;
+
+    Ok(HttpResponse::Ok().json(result))
 }

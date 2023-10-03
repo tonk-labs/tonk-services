@@ -9,6 +9,11 @@ pub enum GameStatus {
 }
 
 #[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
+pub enum Role {
+    Normal, Bugged
+}
+
+#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
 pub struct Location(pub String, pub String, pub String, pub String);
 
 #[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
@@ -19,13 +24,16 @@ pub struct Player {
     pub nearby_players: Option<Vec<Player>>,
     pub nearby_buildings: Option<Vec<Building>>,
     pub secret_key: Option<String>,
-    pub location: Option<Location>
+    pub location: Option<Location>,
+    pub role: Option<Role>,
+    pub used_action: Option<bool>
 }
 
 #[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
 pub struct Building {
     pub id: String,
     pub location: Option<Location>,
+    pub task_message: String,
     pub is_tower: bool
 }
 
@@ -52,7 +60,7 @@ pub struct Action {
 
 #[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
 pub struct Vote {
-    pub candidate: Player
+    pub candidate: Player,
 }
 
 #[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]

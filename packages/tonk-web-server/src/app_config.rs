@@ -33,10 +33,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                             .route(web::get().to(game::get_game_players))
                             .route(web::post().to(game::post_player))
                     )
-                    .service(
-                        web::resource("/time")
-                            .route(web::get().to(game::get_time))
-                    )
+            )
+            .service(
+                web::resource("/result")
+                    .route(web::get().to(game::get_result))
             )
     ).service(
         web::scope("/action")

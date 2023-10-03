@@ -58,7 +58,12 @@ pub struct SyncGraph {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Vars {
+pub struct BuildingVars {
+    gameID: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PlayerVars {
     gameID: String,
     ids: Vec<String>
 }
@@ -97,27 +102,65 @@ pub const DS_PLAYER_QUERY: &str = r#"query DSPlayers($gameID: ID!, $ids: [String
       addr: key
   }"#;
 
+pub const DS_BUILDING_QUERY: &str = r#"query DSBuildings($gameID: ID!) {
+    game(id: $gameID) {
+        id
+        name
+        state {
+            nodes(match: {kinds: "Tile"}) {
+                coords: keys
+                building: node(match: { kinds: "Building", via: { rel: "Location", dir: IN } }) {
+                    id
+                        kind: node(match: { kinds: "BuildingKind", via: { rel: "Is" } }) {
+                            ...BuildingKind
+                        }
+                }
+            }
+        }
+    }
+}
+
+fragment BuildingKind on Node {
+    id
+    name: annotation(name: "name") {
+        value
+    }
+    description: annotation(name: "description") {
+        value
+    }
+    model: annotation(name: "model") {
+        value
+    }
+}
+"#;
+
+#[derive(Debug)]
 struct Cube {
     q: i32,
     r: i32,
     s: i32,
 }
 
-fn convert_hex_string(hex: &String) -> i32 {
-    match i32::from_str_radix(hex, 16) {
-        Ok(i) => i,
-        Err(e) => {
-            0
+fn hex_twos_complement_to_i32(hex: &str) -> i32 {
+    if let Ok(val) = u16::from_str_radix(hex.replace("0x", "").as_str(), 16) {
+        if (val & 0x8000) != 0 {
+            -((!(val - 1)) as i32)
+        } else {
+            val as i32
         }
+    } else {
+        i32::MAX
     }
+
 }
+
 
 impl Cube {
     fn new(loc: &tonk_shared_lib::Location) -> Self {
         Self {
-            q: convert_hex_string(&loc.1),
-            r: convert_hex_string(&loc.2),
-            s: convert_hex_string(&loc.3),
+            q: hex_twos_complement_to_i32(&loc.1),
+            r: hex_twos_complement_to_i32(&loc.2),
+            s: hex_twos_complement_to_i32(&loc.3),
         }
     }
     fn add(&self, other: &Cube) -> Cube {
@@ -138,7 +181,6 @@ impl Cube {
     fn distance(&self, other: &Cube) -> i32 {
         let vec = self.subtract(other);
         (vec.q.abs() + vec.r.abs() + vec.s.abs()) / 2
-        // or: (self.q - other.q).abs() + (self.r - other.r).abs() + (self.s - other.s).abs()) / 2
     }
 }
 
@@ -160,7 +202,7 @@ impl SyncGraph {
         }
     }
 
-    fn update_locations(&self, data: &Data, players: &mut Vec<tonk_shared_lib::Player>) {
+    fn update_locations_player(&self, data: &Data, players: &mut Vec<tonk_shared_lib::Player>) {
         for entry in &data.game.state.nodes {
             if let Some(player) = players.iter_mut().find(|p| {
                 if let Some(id) = &p.mobile_unit_id {
@@ -191,14 +233,16 @@ impl SyncGraph {
             for j in 0..players.len() {
                 let other_cube_coord = Cube::new(players[j].location.as_ref().unwrap());
                 let distance = player_cube_coord.distance(&other_cube_coord);
-                if distance < 2 {
+                if distance < 2 && j != i {
                     nearby_players.push(tonk_shared_lib::Player {
                         id: players[j].id.clone(),
                         mobile_unit_id: players[j].mobile_unit_id.clone(),
                         display_name: players[j].display_name.clone(),
+                        used_action: None,
                         nearby_buildings: None,
                         nearby_players: None,
                         secret_key: None,
+                        role: None,
                         location: players[j].location.clone()
                     });
                 }
@@ -207,7 +251,12 @@ impl SyncGraph {
                 let buildings_cube_coord = Cube::new(buildings[j].location.as_ref().unwrap());
                 let distance = player_cube_coord.distance(&buildings_cube_coord);
                 if distance < 2 {
-                    nearby_buildings.push(tonk_shared_lib::Building { id: buildings[j].id.clone(), location: buildings[j].location.clone(), is_tower: buildings[j].is_tower });
+                    nearby_buildings.push(tonk_shared_lib::Building { 
+                        id: buildings[j].id.clone(), 
+                        location: buildings[j].location.clone(), 
+                        is_tower: buildings[j].is_tower,
+                        task_message: "".to_string(),
+                    });
                 }
             }
             players[i].nearby_players = Some(nearby_players);
@@ -221,23 +270,26 @@ impl SyncGraph {
         let game_index = format!("game:{}:player_index", game.id);
         let mut game_players: Vec<tonk_shared_lib::Player> = self.redis.get_index(&game_index).await?;
         let ids: Vec<String> = game_players.iter_mut().map(|p| p.mobile_unit_id.clone().unwrap_or("".to_string()) ).collect();
+        if ids.len() == 0 {
+            return Ok(());
+        }
 
         let endpoint = "http://localhost:8080/query";
         let client = gql_client::Client::new(endpoint);
-        let vars = Vars {
+        let vars = PlayerVars {
             gameID: "DOWNSTREAM".to_string(),
             ids,
         };
-        let result: Result<Option<Data>, gql_client::GraphQLError> = client.query_with_vars::<Data, Vars>(DS_PLAYER_QUERY, vars).await;
+        let result: Result<Option<Data>, gql_client::GraphQLError> = client.query_with_vars::<Data, PlayerVars>(DS_PLAYER_QUERY, vars).await;
         if result.is_err() {
-            info!("{:?}", result.as_ref().err().unwrap());
+            // info!("{:?}", result.as_ref().err().unwrap());
             return Ok(());
         } else {
-            info!("{:?}", result.as_ref().unwrap());
+            // info!("{:?}", result.as_ref().unwrap());
         }
 
         if let Some(data) = result.unwrap() {
-            self.update_locations(&data, &mut game_players);
+            self.update_locations_player(&data, &mut game_players);
             self.calculate_distance(&mut game_players).await?;
             for player in game_players {
                 let player_key = format!("player:{}", player.id);

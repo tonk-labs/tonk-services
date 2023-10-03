@@ -39,9 +39,11 @@ pub async fn post_player(_id: web::Json<Player>, _path: web::Path<String>) -> Re
             let registered_player = Player {
                 id: _path.to_string(),
                 nearby_buildings: None,
+                used_action: None,
                 nearby_players: None,
                 mobile_unit_id: player_obj.mobile_unit_id,
                 display_name: player_obj.display_name,
+                role: None,
                 // secret_key: Some(secret.clone().to_string()),
                 secret_key: None,
                 location: None,
@@ -55,6 +57,24 @@ pub async fn post_player(_id: web::Json<Player>, _path: web::Path<String>) -> Re
             })?;
             return Ok(HttpResponse::Ok().finish());
         // }
+    } else if player.is_ok() && player_obj.display_name != player.as_ref().unwrap().display_name {
+        let cp = player.as_ref().unwrap().clone();
+        let registered_player = Player {
+            id: cp.id,
+            nearby_buildings: cp.nearby_buildings,
+            nearby_players: cp.nearby_players,
+            mobile_unit_id: cp.mobile_unit_id,
+            display_name: player_obj.display_name,
+            role: cp.role,
+            used_action: cp.used_action,
+            // secret_key: Some(secret.clone().to_string()),
+            secret_key: cp.secret_key,
+            location: cp.location,
+        };
+        let _ = redis.set_key(&player_key, &registered_player).await.map_err(|e| {
+            actix_web::error::ErrorInternalServerError(e)
+        })?;
+        return Ok(HttpResponse::Ok().finish());
     }
 
     Err(actix_web::error::ErrorInternalServerError("unknown error"))
@@ -71,7 +91,9 @@ pub async fn get_player(_id: web::Path<String>) -> Result<HttpResponse, Error> {
             id: "".to_string(),
             nearby_buildings: None,
             nearby_players: None,
+            role: None,
             display_name: None,
+            used_action: None,
             mobile_unit_id: None,
             secret_key: None,
             location: None
