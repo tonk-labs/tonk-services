@@ -13,6 +13,7 @@ async fn hello() -> impl Responder {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
+    env_logger::init();
     HttpServer::new(|| {
         App::new()
             .wrap(

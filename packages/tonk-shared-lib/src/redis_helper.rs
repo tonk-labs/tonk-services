@@ -85,10 +85,28 @@ impl RedisHelper {
         Ok(())
     }
 
-    pub async fn set_index(&self, index: &str, key: &str) -> Result<(), RedisHelperError> {
+    pub async fn clear_key(&self, key: &str) -> Result<(), RedisHelperError> {
+        let mut con_guard = self.con.lock().await;
+        let _ = con_guard.del(key).await?;
+        Ok(())
+    }
+
+    pub async fn add_to_index(&self, index: &str, key: &str) -> Result<(), RedisHelperError> {
         let mut con_guard = self.con.lock().await;
         let _ = con_guard.sadd(index, key).await?;
         Ok(())
+    }
+
+    pub async fn remove_from_index(&self, index: &str, key: &str) -> Result<(), RedisHelperError> {
+        let mut con_guard = self.con.lock().await;
+        let _ = con_guard.srem(index, key).await?;
+        Ok(())
+    }
+
+    pub async fn get_index_keys(&self, index: &str) -> Result<Vec<String>, RedisHelperError> {
+        let mut con_guard = self.con.lock().await;
+        let members: Vec<String> = con_guard.smembers(index).await?;
+        Ok(members)
     }
 
     pub async fn get_index<T: Decode>(&self, index: &str) -> Result<Vec<T>, RedisHelperError> {

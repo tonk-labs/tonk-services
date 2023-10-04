@@ -64,7 +64,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Box::pin(async move {
                 if let Ok(redis) = RedisHelper::init().await {
                     let clock = Clock::new(redis);
-                    let _ = clock.run().await;
+                    let r = clock.run().await;
+                    if r.is_err() {
+                        info!("{:?}", r.err().unwrap());
+                    }
                 }
             })
         })?)
@@ -75,7 +78,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Box::pin(async move {
                 if let Ok(redis) = RedisHelper::init().await {
                     let game_state = GameState::new(redis);
-                    let _ = game_state.run().await;
+                    let r = game_state.run().await;
+                    if r.is_err() {
+                        info!("{:?}", r.err().unwrap());
+                    }
                 }
             })
         })?)

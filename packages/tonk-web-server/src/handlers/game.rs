@@ -1,8 +1,9 @@
 use actix_web::{web, Error, HttpResponse, HttpRequest};
-use tonk_shared_lib::{Game, Player, deserialize_struct, GameStatus, serialize_struct, Building, Role, RoundResult};
+use tonk_shared_lib::{Game, Player, deserialize_struct, GameStatus, serialize_struct, Building, Role, RoundResult, Time};
 use tonk_shared_lib::redis_helper::*;
 use rand::{Rng, thread_rng};
 use rand::seq::SliceRandom;
+use log::*;
 
 // START GAME
 // CALL PUT WITHOUT ANY DATA 
@@ -20,6 +21,7 @@ pub async fn post_game() -> Result<HttpResponse, Error> {
 
             // check buildings exists
             let buildings: Vec<Building> = redis.get_index("building:index").await.map_err(|e| {
+                error!("{:?}", e);
                 actix_web::error::ErrorInternalServerError(e)
             })?;
 
@@ -35,7 +37,8 @@ pub async fn post_game() -> Result<HttpResponse, Error> {
             }
 
             let index_key = format!("game:{}:player_index", current_game.id);
-            let players: Vec<Player> = redis.get_index(&index_key).await.map_err(|_| { 
+            let players: Vec<Player> = redis.get_index(&index_key).await.map_err(|e| { 
+                error!("{:?}", e);
                 actix_web::error::ErrorInternalServerError("unknown error")
             })?;
 
@@ -71,7 +74,12 @@ pub async fn post_game() -> Result<HttpResponse, Error> {
             // give tasks to all the players
             // update status
             current_game.status = GameStatus::Tasks;
+            current_game.time = Some(Time {
+                round: 0,
+                timer: 90,
+            });
             redis.set_key("game", &current_game).await.map_err(|e| {
+                error!("{:?}", e);
                 actix_web::error::ErrorInternalServerError(e)
             })?;
 
@@ -87,6 +95,7 @@ pub async fn post_game() -> Result<HttpResponse, Error> {
 // GET STATUS OF GAME
 pub async fn get_game() -> Result<HttpResponse, Error> {
     let redis = RedisHelper::init().await.map_err(|e| {
+        error!("{:?}", e);
         actix_web::error::ErrorInternalServerError(e)
     })?;
     let current_game: Result<Game, RedisHelperError> = redis.get_key("game").await;
@@ -108,13 +117,16 @@ pub async fn get_game() -> Result<HttpResponse, Error> {
 
 pub async fn get_game_players() -> Result<HttpResponse, Error> {
     let redis = RedisHelper::init().await.map_err(|e| {
+        error!("{:?}", e);
         actix_web::error::ErrorInternalServerError(e)
     })?;
-    let game: Game = redis.get_key("game").await.map_err(|_| { 
+    let game: Game = redis.get_key("game").await.map_err(|e| { 
+        error!("{:?}", e);
         actix_web::error::ErrorInternalServerError("unknown error")
     })?;
     let index_key = format!("game:{}:player_index", game.id);
-    let players: Vec<Player> = redis.get_index(&index_key).await.map_err(|_| { 
+    let players: Vec<Player> = redis.get_index(&index_key).await.map_err(|e| { 
+        error!("{:?}", e);
         actix_web::error::ErrorInternalServerError("unknown error")
     })?;
     Ok(HttpResponse::Ok().json(players))
@@ -126,22 +138,29 @@ pub async fn post_player(_id: web::Json<Player>) -> Result<HttpResponse, Error> 
     let redis = RedisHelper::init().await.map_err(|e| {
         actix_web::error::ErrorInternalServerError(e)
     })?;
-    let game: Game = redis.get_key("game").await.map_err(|_| { 
+    let game: Game = redis.get_key("game").await.map_err(|e| { 
+        error!("{:?}", e);
         actix_web::error::ErrorInternalServerError("unknown error")
     })?;
+    if game.status != GameStatus::Lobby {
+        return Err(actix_web::error::ErrorForbidden("You cannot join a game while it is in session"))
+    }
     let registered_player_key = format!("player:{}", player.id);
-    let registered_player: Player = redis.get_key(&registered_player_key).await.map_err(|_| {
+    let registered_player: Player = redis.get_key(&registered_player_key).await.map_err(|e| {
+        error!("{:?}", e);
         actix_web::error::ErrorForbidden("player does not have a tonk")
     })?;
 
     let index_key = format!("game:{}:player_index", game.id);
-    let game_players: Vec<Player> = redis.get_index(&index_key).await.map_err(|_| {
+    let game_players: Vec<Player> = redis.get_index(&index_key).await.map_err(|e| {
+        error!("{:?}", e);
         actix_web::error::ErrorInternalServerError("There was an unknown error")
     })?;
     if game_players.iter().find(|p| p.id == player.id).is_some() {
         return Err(actix_web::error::ErrorForbidden("This player has already joined the game"));
     }
-    let _ = redis.set_index(&index_key, &registered_player_key).await.map_err(|_| { 
+    let _ = redis.add_to_index(&index_key, &registered_player_key).await.map_err(|e| { 
+        error!("{:?}", e);
         actix_web::error::ErrorInternalServerError("There was an unknown error")
     })?;
     Ok(HttpResponse::Ok().json(registered_player))
@@ -158,7 +177,7 @@ pub async fn post_player(_id: web::Json<Player>) -> Result<HttpResponse, Error> 
     //     Err(e) => {
     //         if let Ok(_) = redis.set_key(&player_key, &registered_player).await {
     //             let index_key = format!("game:{}:player_index", game.id);
-    //             let _ = redis.set_index(&index_key, &player_key).await.map_err(|_| { 
+    //             let _ = redis.add_to_index(&index_key, &player_key).await.map_err(|_| { 
     //                 actix_web::error::ErrorInternalServerError("unknown error")
     //             })?;
     //             Ok(HttpResponse::Ok().json(player))
@@ -171,14 +190,17 @@ pub async fn post_player(_id: web::Json<Player>) -> Result<HttpResponse, Error> 
 
 pub async fn get_result() -> Result<HttpResponse, Error> {
     let redis = RedisHelper::init().await.map_err(|e| {
+        error!("{:?}", e);
         actix_web::error::ErrorInternalServerError(e)
     })?;
-    let game: Game = redis.get_key("game").await.map_err(|_| { 
+    let game: Game = redis.get_key("game").await.map_err(|e| { 
+        error!("{:?}", e);
         actix_web::error::ErrorInternalServerError("unknown error")
     })?;
 
-    let result_key = format!("game:{}:result", game.id);
-    let result: RoundResult = redis.get_key(&result_key).await.map_err(|_| {
+    let result_key = format!("result:{}:{}", game.id, game.time.as_ref().unwrap().round);
+    let result: RoundResult = redis.get_key(&result_key).await.map_err(|e| {
+        error!("{:?}", e);
         actix_web::error::ErrorInternalServerError("unknown error")
     })?;
 

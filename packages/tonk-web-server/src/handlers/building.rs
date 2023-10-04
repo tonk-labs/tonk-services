@@ -23,7 +23,7 @@ pub async fn post_building(_id: web::Json<Building>) -> Result<HttpResponse, Err
     };
     if !fail_to_set {
         if exists.is_err() {
-            if let Err(e) = redis.set_index("building:index", &key).await {
+            if let Err(e) = redis.add_to_index("building:index", &key).await {
                 println!("{}", e.to_string());
                 resp = HttpResponse::InternalServerError().finish();
             }

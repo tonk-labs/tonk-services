@@ -2,10 +2,11 @@ use std::borrow::BorrowMut;
 
 use actix_web::{web, Error, HttpResponse, HttpRequest};
 use futures::io::empty;
-use tonk_shared_lib::{Task, Building, Game, Player, GameStatus, Role};
+use tonk_shared_lib::{Task, Building, Game, Player, GameStatus, Role, Action};
 use serde::{Deserialize, Serialize};
 use tonk_shared_lib::redis_helper::*;
 use rand::Rng;
+use log::*;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskQuery {
@@ -16,6 +17,7 @@ pub struct TaskQuery {
 async fn get_random_depot(redis: &mut RedisHelper) -> Result<Building, Box<dyn std::error::Error>> {
     let mut rng = rand::thread_rng();
     let buildings: Vec<Building> = redis.get_index("building:index").await.map_err(|e| {
+        error!("{:?}", e);
         actix_web::error::ErrorInternalServerError(e)
     })?;
 
@@ -30,10 +32,12 @@ async fn get_random_depot(redis: &mut RedisHelper) -> Result<Building, Box<dyn s
 // RETURNS TASK AND IF IT DOESNT EXIST THEN RANDOMLY ASSIGNS NEW TASK
 pub async fn get_task(_query: web::Query<TaskQuery>, req: HttpRequest) -> Result<HttpResponse, Error> {
     let mut redis = RedisHelper::init().await.map_err(|e| {
+        error!("{:?}", e);
         actix_web::error::ErrorInternalServerError(e)
     })?;
 
     let game: Game = redis.get_key("game").await.map_err(|e| {
+        error!("{:?}", e);
         actix_web::error::ErrorInternalServerError("Unknown error")
     })?;
     if game.status != GameStatus::Tasks {
@@ -42,12 +46,13 @@ pub async fn get_task(_query: web::Query<TaskQuery>, req: HttpRequest) -> Result
     let player_id = &_query.player_id;
     let player_key = format!("player:{}", player_id);
     let player: Player = redis.get_key(&player_key).await.map_err(|e| {
+        error!("{:?}", e);
         actix_web::error::ErrorInternalServerError("Unknown error")
     })?;
     if *player.role.as_ref().unwrap() == Role::Bugged {
         let empty_task = Task {
-            assignee: player.clone(),
-            destination: Building { id: "".to_string(), location: None, task_message: "You are a bug and hunger to bug out others".to_string(), is_tower: false },
+            assignee: Some(player.clone()),
+            destination: Some(Building { id: "".to_string(), location: None, task_message: "You are a bug and hunger to bug out others".to_string(), is_tower: false }),
             round: game.time.as_ref().unwrap().round.clone(),
             complete: false
         };
@@ -63,7 +68,7 @@ pub async fn get_task(_query: web::Query<TaskQuery>, req: HttpRequest) -> Result
         Err(RedisHelperError::MissingKey) => {
             let depot = get_random_depot(redis.borrow_mut()).await?;
             let random_task = Task {
-                assignee: Player { 
+                assignee: Some(Player { 
                     id: player_id.clone(), 
                     nearby_buildings: None, 
                     nearby_players: None, 
@@ -72,15 +77,17 @@ pub async fn get_task(_query: web::Query<TaskQuery>, req: HttpRequest) -> Result
                     mobile_unit_id: None, 
                     secret_key: None, 
                     role: None,
-                    location: None },
-                destination: depot,
+                    location: None }),
+                destination: Some(depot),
                 round: round,
                 complete: false
             };
             let _ = redis.set_key(&task_key, &random_task).await.map_err(|e| {
+                error!("{:?}", e);
                 actix_web::error::ErrorInternalServerError("Unknown error")
             })?;
-            redis.set_index("game:tasks", &task_key).await.map_err(|e| {
+            redis.add_to_index("game:tasks", &task_key).await.map_err(|e| {
+                error!("{:?}", e);
                 actix_web::error::ErrorInternalServerError("Unknown error")
             })?;
             Ok(HttpResponse::Ok().json(random_task))
@@ -94,10 +101,12 @@ pub async fn get_task(_query: web::Query<TaskQuery>, req: HttpRequest) -> Result
 // USED TO CONFIRM SUCCESSFUL COMPLETION OF TASK
 pub async fn post_task(_id: web::Json<Task>, _query: web::Query<TaskQuery>, req: HttpRequest) -> Result<HttpResponse, Error> {
     let mut redis = RedisHelper::init().await.map_err(|e| {
+        error!("{:?}", e);
         actix_web::error::ErrorInternalServerError(e)
     })?;
 
     let game: Game = redis.get_key("game").await.map_err(|e| {
+        error!("{:?}", e);
         actix_web::error::ErrorInternalServerError("Unknown error")
     })?;
     let round = game.time.unwrap().round;
@@ -110,15 +119,21 @@ pub async fn post_task(_id: web::Json<Task>, _query: web::Query<TaskQuery>, req:
     let task_key = format!("task:{}:{}:{}", game.id, round, player_id);
 
     let player: Player = redis.get_key(&player_key).await.map_err(|e| {
+        error!("{:?}", e);
         actix_web::error::ErrorInternalServerError("Unknown error")
     })?;
     let task: Task = redis.get_key(&task_key).await.map_err(|e| {
+        error!("{:?}", e);
         actix_web::error::ErrorInternalServerError("Unknown error")
     })?;
 
+    if task.complete {
+        return Err(actix_web::error::ErrorForbidden("Task is already complete"));
+    }
+
     if let Some(buildings) = player.nearby_buildings {
         for building in buildings {
-            if building.id == _id.0.destination.id {
+            if building.id == _id.0.destination.as_ref().unwrap().id {
                 let mut completed_task = task.clone();
                 completed_task.complete = true;
                 redis.set_key(&task_key, &completed_task).await.map_err(|e| {

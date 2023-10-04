@@ -8,15 +8,15 @@ pub enum GameStatus {
     Null, Lobby, Tasks, TaskResult, Vote, VoteResult, End
 }
 
-#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, Encode, Decode, Eq, Hash, PartialEq, Clone, Debug)]
 pub enum Role {
     Normal, Bugged
 }
 
-#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, Encode, Decode, Eq, Hash, PartialEq, Clone, Debug)]
 pub struct Location(pub String, pub String, pub String, pub String);
 
-#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, Encode, Decode, Eq, Hash, PartialEq, Clone, Debug)]
 pub struct Player {
     pub id: String,
     pub mobile_unit_id: Option<String>,
@@ -29,7 +29,7 @@ pub struct Player {
     pub used_action: Option<bool>
 }
 
-#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, Encode, Decode, Hash, Eq, PartialEq, Clone, Debug)]
 pub struct Building {
     pub id: String,
     pub location: Option<Location>,
@@ -46,8 +46,8 @@ pub struct Game {
 
 #[derive(Encode, Decode, Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct Task {
-    pub assignee: Player,
-    pub destination: Building,
+    pub assignee: Option<Player>,
+    pub destination: Option<Building>,
     pub round: u32,
     pub complete: bool
 }
@@ -55,34 +55,26 @@ pub struct Task {
 #[derive(Encode, Decode, Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct Action {
     pub poison_target: Player,
+    pub interrupted_task: bool,
     pub round: u32
 }
 
-#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, Encode, Decode, Eq, PartialEq, Clone, Debug)]
 pub struct Vote {
     pub candidate: Player,
 }
 
 #[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
 pub struct RoundResult {
-    round_type: GameStatus,
-    eliminated: Option<Vec<Player>>,
-    tasks_completed: Option<Vec<Task>>
+    pub round_type: GameStatus,
+    pub eliminated: Option<Vec<Player>>,
+    pub tasks_completed: Option<Vec<Task>>
 }
 
 #[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
 pub struct Time {
     pub round: u32,
     pub timer: u32
-}
-
-#[derive(Encode, Decode, PartialEq, Clone, Debug)]
-pub struct GameState {
-    pub id: String,
-    pub players: Vec<Player>,
-    pub bugged_players: Vec<Player>,
-    pub current_votes: Vec<Vote>,
-    pub current_tasks: Vec<Task>
 }
 
 pub fn serialize_struct<T: Encode>(obj: &T) -> Result<Vec<u8>, bincode::error::EncodeError> {

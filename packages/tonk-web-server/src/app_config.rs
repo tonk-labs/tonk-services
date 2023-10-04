@@ -27,16 +27,16 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                     .route(web::post().to(game::post_game))
             )
             .service(
+                web::resource("/result")
+                    .route(web::get().to(game::get_result))
+            )
+            .service(
                 web::scope("/{game_id}")
                     .service(
                         web::resource("/player")
                             .route(web::get().to(game::get_game_players))
                             .route(web::post().to(game::post_player))
                     )
-            )
-            .service(
-                web::resource("/result")
-                    .route(web::get().to(game::get_result))
             )
     ).service(
         web::scope("/action")

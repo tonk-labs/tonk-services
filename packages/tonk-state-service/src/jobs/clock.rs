@@ -20,14 +20,14 @@ impl Clock {
         }
         let time = game.time.unwrap();
 
-        if time.timer >= 120 {
+        if time.timer == 0 {
             // we should just wait
         } else {
             let next_game = Game {
                 id: game.id,
                 status: game.status,
                 time: Some(Time {
-                    timer: time.timer + 1,
+                    timer: time.timer - 1,
                     round: time.round
                 }),
             };
