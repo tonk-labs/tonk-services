@@ -1,32 +1,38 @@
 FROM rust:1.68-buster as build
+RUN USER=root cargo new --bin tonk-state-service 
 
-RUN USER=root cargo new --bin tonk-sync-service 
-WORKDIR ./tonk-sync-service
+COPY ./tonk-shared-lib ./tonk-shared-lib
 
-COPY ./Cargo.toml ./Cargo.toml
-COPY ./Cargo.lock ./Cargo.lock
+WORKDIR ./tonk-state-service
+
+COPY ./tonk-state-service/Cargo.toml ./Cargo.toml
+COPY ./tonk-state-service/Cargo.lock ./Cargo.lock
 
 RUN cargo build --release
 RUN rm src/*.rs
 
-COPY ./src ./src
-COPY ./schema.json ./schema.json
+COPY ./tonk-state-service/src ./src
 
 # 5. Build for release.
-RUN rm ./target/release/deps/tonk_sync_service*;
+RUN rm -f ./target/release/deps/tonk_state_service*;
 RUN cargo build --release
 
 # deploy stage
 FROM debian:buster-slim
 
+# Install the missing library
+RUN apt-get update && \
+    apt-get install -y libssl1.1 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # # create app directory
 RUN mkdir app 
 WORKDIR /app
 
+COPY ./tonk-state-service/.env.production ./.env.production
 # # copy binary and configuration files
-COPY --from=build /tonk-sync-service/target/release/tonk-sync-service ./
-
-EXPOSE 8081 
+COPY --from=build /tonk-state-service/target/release/tonk-state-service ./
 
 # # set the startup command to run your binary
-CMD ["/app/tonk-sync-service"]
+CMD ["/app/tonk-state-service"]

@@ -1,0 +1,4 @@
+.git
+tonk-shared-lib/target
+tonk-state-service/target
+tonk-web-server/target

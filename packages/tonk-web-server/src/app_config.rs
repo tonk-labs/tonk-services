@@ -4,6 +4,10 @@ use crate::handlers::{action, game, player, building, vote, task};
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg
     .service(
+        web::resource("/")
+            .route(web::get().to(game::health_check))
+    )
+    .service(
         web::scope("/building")
             .service(
                 web::resource("")

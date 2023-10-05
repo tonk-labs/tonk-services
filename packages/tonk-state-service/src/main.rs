@@ -8,6 +8,8 @@ use crate::jobs::sync_graph::SyncGraph;
 use crate::jobs::clock::Clock;
 use crate::jobs::game_state::GameState;
 use log::*;
+use std::env;
+use dotenv::dotenv;
 
 // fn initialize_game_state() -> Result<(), Box<dyn std::error::Error>> {
 //     // if we do this on the startup of state-service then better to just
@@ -44,6 +46,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let shared_client = Arc::new(sync_graph).clone();
 
     // initialize_game_state()?;
+    match env::var("TONK_SERVICES_STAGE") {
+        Ok(stage) => {
+            println!("Starting up tonk-state-service in stage: {}", stage);
+            dotenv::from_filename(".env.production").ok();
+        }
+        Err(_) => {
+            dotenv::from_filename(".env.local").ok();
+        }
+    }
 
     sched
         .add(Job::new_async("1/2 * * * * *", move |_, _| {

@@ -115,6 +115,10 @@ pub async fn get_game() -> Result<HttpResponse, Error> {
     }
 }
 
+pub async fn health_check() -> Result<HttpResponse, Error> {
+    Ok(HttpResponse::Ok().body("Hello!"))
+}
+
 pub async fn get_game_players() -> Result<HttpResponse, Error> {
     let redis = RedisHelper::init().await.map_err(|e| {
         error!("{:?}", e);

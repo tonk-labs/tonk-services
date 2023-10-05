@@ -1,7 +1,6 @@
 use std::borrow::BorrowMut;
 
 use actix_web::{web, Error, HttpResponse, HttpRequest};
-use futures::io::empty;
 use tonk_shared_lib::{Task, Building, Game, Player, GameStatus, Role, Action};
 use serde::{Deserialize, Serialize};
 use tonk_shared_lib::redis_helper::*;

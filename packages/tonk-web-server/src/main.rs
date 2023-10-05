@@ -1,6 +1,7 @@
 use actix_web::{http::header, get, App, HttpResponse, HttpServer, Responder};
 use actix_cors::Cors;
 use dotenv::dotenv;
+use std::env;
 
 mod app_config;
 mod handlers;
@@ -12,13 +13,22 @@ async fn hello() -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    dotenv().ok();
     env_logger::init();
-    HttpServer::new(|| {
+    match env::var("TONK_SERVICES_STAGE") {
+        Ok(stage) => {
+            println!("Starting up tonk-web-server in stage: {}", stage);
+            dotenv::from_filename(".env.production").ok();
+        }
+        Err(_) => {
+            dotenv::from_filename(".env.local").ok();
+        }
+    }
+    let origin = env::var("ALLOWED_ORIGIN").unwrap();
+    HttpServer::new(move || {
         App::new()
             .wrap(
                 Cors::default()
-                    .allowed_origin("http://localhost:3000")
+                    .allowed_origin(origin.as_str())
                     .allowed_methods(vec!["GET", "POST", "PUT"])
                     .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
                     .allowed_header(header::CONTENT_TYPE)

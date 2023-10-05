@@ -3,9 +3,11 @@ use redis::{AsyncCommands, RedisResult, aio::Connection, RedisError};
 use bincode::{Decode, Encode, error};
 use tokio::sync::Mutex;
 use crate::{deserialize_struct, serialize_struct};
+use std::env;
 
 pub async fn get_connection() -> RedisResult<Connection> {
-    let client = redis::Client::open("redis://0.0.0.0/")?;
+    let redis_url = env::var("REDIS_URL").unwrap();
+    let client = redis::Client::open(redis_url)?;
     client.get_async_connection().await
 }
 
