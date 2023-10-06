@@ -63,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let sync_graph = SyncGraph::new(redis);
                     let r = sync_graph.run().await;
                     if r.is_err() {
-                        info!("{}", r.err().unwrap());
+                        error!("{}", r.err().unwrap());
                     }
                 }
             })
@@ -77,7 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let clock = Clock::new(redis);
                     let r = clock.run().await;
                     if r.is_err() {
-                        info!("{:?}", r.err().unwrap());
+                        error!("{:?}", r.err().unwrap());
                     }
                 }
             })
@@ -91,7 +91,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let game_state = GameState::new(redis);
                     let r = game_state.run().await;
                     if r.is_err() {
-                        info!("{:?}", r.err().unwrap());
+                        error!("{:?}", r.err().unwrap());
                     }
                 }
             })

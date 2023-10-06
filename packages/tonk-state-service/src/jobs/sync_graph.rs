@@ -4,6 +4,7 @@ use redis::{Commands, ToRedisArgs, RedisResult};
 use reqwest;
 use gql_client;
 use serde::{Deserialize,Serialize};
+use std::env;
 
 use tonk_shared_lib;
 use tonk_shared_lib::redis_helper::*;
@@ -271,10 +272,11 @@ impl SyncGraph {
         let mut game_players: Vec<tonk_shared_lib::Player> = self.redis.get_index(&game_index).await?;
         let ids: Vec<String> = game_players.iter_mut().map(|p| p.mobile_unit_id.clone().unwrap_or("".to_string()) ).collect();
         if ids.len() == 0 {
+            println!("{:?}", "skipping location update, no players in the game");
             return Ok(());
         }
 
-        let endpoint = "http://localhost:8080/query";
+        let endpoint = env::var("DS_ENDPOINT").unwrap();
         let client = gql_client::Client::new(endpoint);
         let vars = PlayerVars {
             gameID: "DOWNSTREAM".to_string(),
@@ -282,10 +284,10 @@ impl SyncGraph {
         };
         let result: Result<Option<Data>, gql_client::GraphQLError> = client.query_with_vars::<Data, PlayerVars>(DS_PLAYER_QUERY, vars).await;
         if result.is_err() {
-            // info!("{:?}", result.as_ref().err().unwrap());
+            // println!("{:?}", result.as_ref().err().unwrap());
             return Ok(());
         } else {
-            // info!("{:?}", result.as_ref().unwrap());
+            // println!("{:?}", result.as_ref().unwrap());
         }
 
         if let Some(data) = result.unwrap() {

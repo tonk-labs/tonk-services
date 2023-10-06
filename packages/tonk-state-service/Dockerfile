@@ -20,6 +20,8 @@ RUN cargo build --release
 # deploy stage
 FROM debian:buster-slim
 
+RUN apt-get update && apt-get install -y ca-certificates && update-ca-certificates
+
 # Install the missing library
 RUN apt-get update && \
     apt-get install -y libssl1.1 && \
@@ -30,9 +32,9 @@ RUN apt-get update && \
 RUN mkdir app 
 WORKDIR /app
 
-COPY ./tonk-state-service/.env.production ./.env.production
 # # copy binary and configuration files
 COPY --from=build /tonk-state-service/target/release/tonk-state-service ./
+COPY ./tonk-state-service/.env.production ./.env.production
 
 # # set the startup command to run your binary
 CMD ["/app/tonk-state-service"]
