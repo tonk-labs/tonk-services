@@ -1,7 +1,7 @@
 use actix_web::{web, Error, HttpResponse, HttpRequest};
 use tonk_shared_lib::{Game, Player, deserialize_struct, GameStatus, serialize_struct, Building, Role, RoundResult, Time};
 use tonk_shared_lib::redis_helper::*;
-use rand::{Rng, thread_rng};
+use rand::{Rng, thread_rng, RngCore};
 use rand::seq::SliceRandom;
 use log::*;
 
@@ -46,24 +46,33 @@ pub async fn post_game() -> Result<HttpResponse, Error> {
                 return Err(actix_web::error::ErrorForbidden("More players need to join the game before we can start"));
             }
 
-            let mut n = (players.len() as f64 * 0.2).round() as usize;
-            if n == 0 {
-                n = 1;
-            }
-            let mut rng = rand::thread_rng();
-            let indices: Vec<usize> = (0..players.len()).collect();
-            let sampled_indices: Vec<_> = indices.choose_multiple(&mut rng, n).cloned().collect();
+            // we don't want the number of bugs to outnumber the players
+            let max_bugs = (players.len() as f64 * 0.4).round() as usize;
 
+            // the purely stochastic bug player setup
             let mut new_players: Vec<Player> = Vec::new();
+            let mut rng = rand::thread_rng();
+            let mut num_bugs = 0;
+
             // Step 2: Traverse and modify
             for i in 0..players.len() {
+                let is_bug = rng.gen_ratio(1, 4);
+
                 let mut newp = players[i].clone();
-                if sampled_indices.contains(&i) {
+                if is_bug && max_bugs > num_bugs {
+                    num_bugs += 1;
                     newp.role = Some(Role::Bugged);
                 } else {
                     newp.role = Some(Role::Normal);
                 }
                 new_players.push(newp);
+            }
+
+            if num_bugs == 0 {
+                // we need to choose at least one random person to be a bug
+                new_players.shuffle(&mut rng);
+                new_players[0].role = Some(Role::Bugged);
+                new_players.shuffle(&mut rng);
             }
 
             for player in new_players {
