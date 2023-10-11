@@ -4,6 +4,12 @@ use tonk_shared_lib::redis_helper::*;
 use rand::{Rng, thread_rng, RngCore};
 use rand::seq::SliceRandom;
 use log::*;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PlayerQuery {
+    player_id: String
+}
 
 // START GAME
 // CALL PUT WITHOUT ANY DATA 
@@ -128,7 +134,27 @@ pub async fn health_check() -> Result<HttpResponse, Error> {
     Ok(HttpResponse::Ok().body("Hello!"))
 }
 
-pub async fn get_game_players() -> Result<HttpResponse, Error> {
+fn sanitize_players(players: &Vec<Player>, show_role: bool) -> Vec<Player> {
+    players.iter().map(|p| {
+        let mut role: Option<Role> = None;
+        if show_role {
+            role = p.role.clone();
+        }
+        Player {
+            id: p.id.clone(),
+            nearby_buildings: None,
+            nearby_players: None,
+            mobile_unit_id: p.mobile_unit_id.clone(),
+            display_name: p.display_name.clone(),
+            role,
+            used_action: None,
+            secret_key: None,
+            location: None,
+        }
+    }).collect()
+}
+
+pub async fn get_game_players(_query: web::Query<PlayerQuery>) -> Result<HttpResponse, Error> {
     let redis = RedisHelper::init().await.map_err(|e| {
         error!("{:?}", e);
         actix_web::error::ErrorInternalServerError(e)
@@ -137,12 +163,32 @@ pub async fn get_game_players() -> Result<HttpResponse, Error> {
         error!("{:?}", e);
         actix_web::error::ErrorInternalServerError("unknown error")
     })?;
+    let player_id = _query.0.player_id;
+    let player_key = format!("player:{}", player_id);
+    let player_result: Result<Player, RedisHelperError> = redis.get_key(&player_key).await;
+
+    let show_role;
+    match player_result {
+        Ok(player) => {
+            show_role = *player.role.as_ref().unwrap_or(&Role::Normal) == Role::Bugged;
+        }
+        Err(RedisHelperError::MissingKey) => {
+            show_role = false;
+        }
+        Err(e) => {
+            error!("{:?}", e);
+            return Err(actix_web::error::ErrorInternalServerError("unknown error"));
+        }
+    }
+
+
+
     let index_key = format!("game:{}:player_index", game.id);
     let players: Vec<Player> = redis.get_index(&index_key).await.map_err(|e| { 
         error!("{:?}", e);
         actix_web::error::ErrorInternalServerError("unknown error")
     })?;
-    Ok(HttpResponse::Ok().json(players))
+    Ok(HttpResponse::Ok().json(sanitize_players(&players, show_role)))
 }
 
 // Used to join the game

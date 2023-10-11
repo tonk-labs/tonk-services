@@ -20,6 +20,7 @@ async fn main() -> std::io::Result<()> {
             dotenv::from_filename(".env.production").ok();
         }
         Err(_) => {
+            println!("Starting up tonk-web-server in stage: {}", "local");
             dotenv::from_filename(".env.local").ok();
         }
     }
