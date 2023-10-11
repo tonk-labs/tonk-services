@@ -234,7 +234,7 @@ impl SyncGraph {
             for j in 0..players.len() {
                 let other_cube_coord = Cube::new(players[j].location.as_ref().unwrap());
                 let distance = player_cube_coord.distance(&other_cube_coord);
-                if distance < 2 && j != i {
+                if distance < 3 && j != i {
                     nearby_players.push(tonk_shared_lib::Player {
                         id: players[j].id.clone(),
                         mobile_unit_id: players[j].mobile_unit_id.clone(),

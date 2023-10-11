@@ -256,7 +256,7 @@ impl GameState {
                         id: game.id,
                         status: GameStatus::TaskResult,
                         time: Some(Time {
-                            timer: 90,
+                            timer: 15,
                             round: time.round
                         }),
                     };
@@ -278,7 +278,7 @@ impl GameState {
                             id: game.id.clone(),
                             status: GameStatus::End,
                             time: Some(Time {
-                                timer: 90,
+                                timer: 30,
                                 round: time.round 
                             }),
                         };
@@ -288,7 +288,7 @@ impl GameState {
                             id: game.id.clone(),
                             status: GameStatus::Vote,
                             time: Some(Time {
-                                timer: 90,
+                                timer: 30,
                                 round: time.round + 1
                             }),
                         };
@@ -307,7 +307,7 @@ impl GameState {
                         id: game.id,
                         status: GameStatus::VoteResult,
                         time: Some(Time {
-                            timer: 90,
+                            timer: 15,
                             round: time.round
                         }),
                     };
@@ -330,7 +330,7 @@ impl GameState {
                             id: game.id.clone(),
                             status: GameStatus::End,
                             time: Some(Time {
-                                timer: 90,
+                                timer: 30,
                                 round: time.round
                             }),
                         };
@@ -340,7 +340,7 @@ impl GameState {
                             id: game.id.clone(),
                             status: GameStatus::Tasks,
                             time: Some(Time {
-                                timer: 90,
+                                timer: 30,
                                 round: time.round + 1
                             }),
                         };
