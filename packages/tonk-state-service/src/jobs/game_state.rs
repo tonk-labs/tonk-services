@@ -200,6 +200,7 @@ impl GameState {
         //         return Ok(true);
         //     }
         // }
+
         
         let eliminated_ids: HashSet<String> = result
             .eliminated
@@ -213,6 +214,19 @@ impl GameState {
             .iter()
             .filter(|&p| !eliminated_ids.contains(&p.id))
             .collect();
+
+        // NEW win condition, more than 50% of players are bugs
+        let number_of_bugs = remaining_players.iter().fold(0, |acc, e| {
+            if *e.role.as_ref().unwrap() == Role::Bugged {
+                acc + 1
+            } else {
+                acc
+            }
+        });
+
+        if number_of_bugs as f64 > (remaining_players.len() as f64 * 0.5) {
+            return Ok(true);
+        }
 
         // everyone is killed, only saboteurs remain
         let no_villagers_remain = remaining_players.iter().fold(true, |acc, e| {
