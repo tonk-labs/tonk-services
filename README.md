@@ -1,2 +1,3 @@
 # tonk-server
-prototype suite of services for twitchy gameplay and hidden information
+A proof-of-concept suite of services for DebugUs in the game Downstream
+
