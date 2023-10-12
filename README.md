@@ -1,2 +1,2 @@
 # tonk-server
-battle server for twitchy gameplay and hidden information
+prototype suite of services for twitchy gameplay and hidden information
