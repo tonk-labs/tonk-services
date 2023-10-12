@@ -142,7 +142,7 @@ fn sanitize_players(players: &Vec<Player>, show_role: bool) -> Vec<Player> {
         }
         Player {
             id: p.id.clone(),
-            nearby_buildings: None,
+            nearby_buildings: None, 
             nearby_players: None,
             mobile_unit_id: p.mobile_unit_id.clone(),
             display_name: p.display_name.clone(),
@@ -150,6 +150,7 @@ fn sanitize_players(players: &Vec<Player>, show_role: bool) -> Vec<Player> {
             used_action: None,
             secret_key: None,
             location: None,
+            immune: None,
         }
     }).collect()
 }

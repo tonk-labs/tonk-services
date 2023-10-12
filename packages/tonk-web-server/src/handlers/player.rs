@@ -44,6 +44,7 @@ pub async fn post_player(_id: web::Json<Player>, _path: web::Path<String>) -> Re
                 nearby_players: None,
                 mobile_unit_id: player_obj.mobile_unit_id,
                 display_name: player_obj.display_name,
+                immune: None,
                 role: None,
                 used_action: Some(false),
                 // secret_key: Some(secret.clone().to_string()),
@@ -69,6 +70,7 @@ pub async fn post_player(_id: web::Json<Player>, _path: web::Path<String>) -> Re
             nearby_players: cp.nearby_players,
             mobile_unit_id: cp.mobile_unit_id,
             display_name: player_obj.display_name,
+            immune: cp.immune,
             role: cp.role,
             used_action: cp.used_action,
             // secret_key: Some(secret.clone().to_string()),
@@ -108,6 +110,7 @@ pub async fn get_player(_id: web::Path<String>) -> Result<HttpResponse, Error> {
             used_action: None,
             display_name: None,
             mobile_unit_id: None,
+            immune: None,
             secret_key: None,
             location: None
         }))

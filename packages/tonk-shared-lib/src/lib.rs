@@ -26,7 +26,8 @@ pub struct Player {
     pub secret_key: Option<String>,
     pub location: Option<Location>,
     pub role: Option<Role>,
-    pub used_action: Option<bool>
+    pub used_action: Option<bool>,
+    pub immune: Option<bool>
 }
 
 #[derive(Serialize, Deserialize, Encode, Decode, Hash, Eq, PartialEq, Clone, Debug)]

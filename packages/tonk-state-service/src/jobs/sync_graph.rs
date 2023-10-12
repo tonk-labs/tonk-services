@@ -231,6 +231,7 @@ impl SyncGraph {
             let mut nearby_players: Vec<tonk_shared_lib::Player> = Vec::new();
             let mut nearby_buildings: Vec<tonk_shared_lib::Building> = Vec::new();
             let player_cube_coord = Cube::new(players[i].location.as_ref().unwrap());
+            players[i].immune = Some(false);
             for j in 0..players.len() {
                 let other_cube_coord = Cube::new(players[j].location.as_ref().unwrap());
                 let distance = player_cube_coord.distance(&other_cube_coord);
@@ -242,6 +243,7 @@ impl SyncGraph {
                         display_name: players[j].display_name.clone(),
                         nearby_buildings: None,
                         used_action: None,
+                        immune: None,
                         nearby_players: None,
                         secret_key: None,
                         role: None,
@@ -260,6 +262,9 @@ impl SyncGraph {
                         task_message: "".to_string(),
                     });
                 }
+                if distance < 4 && buildings[j].is_tower {
+                    players[i].immune = Some(true);
+                } 
             }
             players[i].nearby_players = Some(nearby_players);
             players[i].nearby_buildings = Some(nearby_buildings);

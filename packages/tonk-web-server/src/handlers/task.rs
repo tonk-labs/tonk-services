@@ -72,6 +72,7 @@ pub async fn get_task(_query: web::Query<TaskQuery>, req: HttpRequest) -> Result
                     nearby_buildings: None, 
                     nearby_players: None, 
                     used_action: None,
+                    immune: None,
                     display_name: None, 
                     mobile_unit_id: None, 
                     secret_key: None, 

@@ -52,6 +52,9 @@ pub async fn post_action(_id: web::Json<Action>, _query: web::Query<ActionQuery>
     if *target_is_near.as_ref().unwrap().role.as_ref().unwrap_or(&Role::Bugged) == Role::Bugged {
         return Err(actix_web::error::ErrorForbidden("Bugs cannot bug another bugger"));
     }
+    if !*target_is_near.as_ref().unwrap().immune.as_ref().unwrap_or(&false) {
+        return Err(actix_web::error::ErrorForbidden("You cannot bug someone within 3 tiles of the tower"));
+    }
 
     let action_key = format!("action:{}:{}:{}", game.id, round, player.id);
     let exists: Result<Action, _> = redis.get_key(&action_key).await;
