@@ -37,6 +37,8 @@ pub async fn post_action(_id: web::Json<Action>, _query: web::Query<ActionQuery>
         actix_web::error::ErrorInternalServerError("Unknown error")
     })?;
 
+    let mut updated_player = player.clone();
+
     if *player.role.as_ref().unwrap() != Role::Bugged {
         return Err(actix_web::error::ErrorForbidden("You cannot take this action"));
     }
@@ -49,10 +51,10 @@ pub async fn post_action(_id: web::Json<Action>, _query: web::Query<ActionQuery>
     if target_is_near.is_none() {
         return Err(actix_web::error::ErrorForbidden("The target is not within range"));
     }
-    if *target_is_near.as_ref().unwrap().role.as_ref().unwrap_or(&Role::Bugged) == Role::Bugged {
-        return Err(actix_web::error::ErrorForbidden("Bugs cannot bug another bugger"));
+    if *target_is_near.as_ref().unwrap().role.as_ref().unwrap() == Role::Bugged {
+        return Err(actix_web::error::ErrorForbidden("Bugs cannot bug another bug"));
     }
-    if !*target_is_near.as_ref().unwrap().immune.as_ref().unwrap_or(&false) {
+    if *target_is_near.as_ref().unwrap().immune.as_ref().unwrap() {
         return Err(actix_web::error::ErrorForbidden("You cannot bug someone within 3 tiles of the tower"));
     }
 
@@ -70,6 +72,12 @@ pub async fn post_action(_id: web::Json<Action>, _query: web::Query<ActionQuery>
         }
 
         let _ = redis.set_key(&action_key, &updated_action).await.map_err(|e| {
+            error!("{:?}", e);
+            actix_web::error::ErrorInternalServerError("Unknown error")
+        })?;
+
+        updated_player.used_action = Some(true);
+        redis.set_key(&player_key, &updated_player).await.map_err(|e| {
             error!("{:?}", e);
             actix_web::error::ErrorInternalServerError("Unknown error")
         })?;

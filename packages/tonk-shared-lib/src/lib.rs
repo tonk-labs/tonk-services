@@ -8,6 +8,11 @@ pub enum GameStatus {
     Null, Lobby, Tasks, TaskResult, Vote, VoteResult, End
 }
 
+#[derive(Serialize, Deserialize, Encode, Decode, Clone, PartialEq, Debug)]
+pub enum WinResult {
+    Thuggery, Democracy, Perfection, Armageddon, Null
+}
+
 #[derive(Serialize, Deserialize, Encode, Decode, Eq, Hash, PartialEq, Clone, Debug)]
 pub enum Role {
     Normal, Bugged
@@ -43,6 +48,7 @@ pub struct Game {
     pub id: String,
     pub status: GameStatus,
     pub time: Option<Time>,
+    pub win_result: Option<WinResult>
 }
 
 #[derive(Encode, Decode, Serialize, Deserialize, PartialEq, Clone, Debug)]
@@ -50,6 +56,7 @@ pub struct Task {
     pub assignee: Option<Player>,
     pub destination: Option<Building>,
     pub round: u32,
+    pub dropped_off: bool,
     pub complete: bool
 }
 
@@ -66,9 +73,20 @@ pub struct Vote {
 }
 
 #[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
+pub enum EliminationReason {
+    BuggedOut, VotedOut, Inaction 
+}
+
+#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
+pub struct Elimination {
+    pub player: Player,
+    pub reason: EliminationReason
+}
+
+#[derive(Serialize, Deserialize, Encode, Decode, PartialEq, Clone, Debug)]
 pub struct RoundResult {
     pub round_type: GameStatus,
-    pub eliminated: Option<Vec<Player>>,
+    pub eliminated: Option<Vec<Elimination>>,
     pub tasks_completed: Option<Vec<Task>>
 }
 

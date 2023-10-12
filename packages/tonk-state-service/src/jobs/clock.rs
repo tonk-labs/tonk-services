@@ -30,6 +30,7 @@ impl Clock {
                     timer: time.timer - 1,
                     round: time.round
                 }),
+                win_result: game.win_result 
             };
             let _ = self.redis.set_key("game", &next_game).await?;
         }

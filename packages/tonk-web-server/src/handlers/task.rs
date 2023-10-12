@@ -51,8 +51,9 @@ pub async fn get_task(_query: web::Query<TaskQuery>, req: HttpRequest) -> Result
     if *player.role.as_ref().unwrap() == Role::Bugged {
         let empty_task = Task {
             assignee: Some(player.clone()),
-            destination: Some(Building { id: "".to_string(), location: None, task_message: "You are a bug and hunger to bug out others".to_string(), is_tower: false }),
+            destination: Some(Building { id: "".to_string(), location: None, task_message: "You are a bug and hunger to bug out others.".to_string(), is_tower: false }),
             round: game.time.as_ref().unwrap().round.clone(),
+            dropped_off: false,
             complete: false
         };
         return Ok(HttpResponse::Ok().json(empty_task));
@@ -80,6 +81,7 @@ pub async fn get_task(_query: web::Query<TaskQuery>, req: HttpRequest) -> Result
                     location: None }),
                 destination: Some(depot),
                 round: round,
+                dropped_off: false,
                 complete: false
             };
             let _ = redis.set_key(&task_key, &random_task).await.map_err(|e| {
@@ -122,6 +124,8 @@ pub async fn post_task(_id: web::Json<Task>, _query: web::Query<TaskQuery>, req:
         error!("{:?}", e);
         actix_web::error::ErrorInternalServerError("Unknown error")
     })?;
+    let mut updated_player = player.clone();
+
     let task: Task = redis.get_key(&task_key).await.map_err(|e| {
         error!("{:?}", e);
         actix_web::error::ErrorInternalServerError("Unknown error")
@@ -133,12 +137,27 @@ pub async fn post_task(_id: web::Json<Task>, _query: web::Query<TaskQuery>, req:
 
     if let Some(buildings) = player.nearby_buildings {
         for building in buildings {
-            if building.id == _id.0.destination.as_ref().unwrap().id {
+            if !task.dropped_off && building.id == _id.0.destination.as_ref().unwrap().id {
+                let mut updated_task = task.clone();
+                updated_task.dropped_off = true;
+                redis.set_key(&task_key, &updated_task).await.map_err(|e| {
+                    actix_web::error::ErrorInternalServerError("Unknown error")
+                })?;
+                return Ok(HttpResponse::Ok().json(updated_task));
+            }
+            if !task.complete && building.is_tower {
                 let mut completed_task = task.clone();
                 completed_task.complete = true;
                 redis.set_key(&task_key, &completed_task).await.map_err(|e| {
                     actix_web::error::ErrorInternalServerError("Unknown error")
                 })?;
+
+                updated_player.used_action = Some(true);
+                redis.set_key(&player_key, &updated_player).await.map_err(|e| {
+                    error!("{:?}", e);
+                    actix_web::error::ErrorInternalServerError("Unknown error")
+                })?;
+
                 return Ok(HttpResponse::Ok().json(completed_task));
             }
         }

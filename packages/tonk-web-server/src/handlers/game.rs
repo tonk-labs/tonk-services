@@ -91,7 +91,7 @@ pub async fn post_game() -> Result<HttpResponse, Error> {
             current_game.status = GameStatus::Tasks;
             current_game.time = Some(Time {
                 round: 0,
-                timer: 90,
+                timer: 60,
             });
             redis.set_key("game", &current_game).await.map_err(|e| {
                 error!("{:?}", e);
@@ -124,6 +124,7 @@ pub async fn get_game() -> Result<HttpResponse, Error> {
                 id: "".to_string(),
                 status: GameStatus::Null,
                 time: None,
+                win_result: None
             };
             Ok(HttpResponse::Ok().json(empty_game))
         }
@@ -150,7 +151,7 @@ fn sanitize_players(players: &Vec<Player>, show_role: bool) -> Vec<Player> {
             used_action: None,
             secret_key: None,
             location: None,
-            immune: None,
+            immune: p.immune,
         }
     }).collect()
 }
@@ -168,10 +169,12 @@ pub async fn get_game_players(_query: web::Query<PlayerQuery>) -> Result<HttpRes
     let player_key = format!("player:{}", player_id);
     let player_result: Result<Player, RedisHelperError> = redis.get_key(&player_key).await;
 
-    let show_role;
+    let mut show_role = false;
     match player_result {
         Ok(player) => {
-            show_role = *player.role.as_ref().unwrap_or(&Role::Normal) == Role::Bugged;
+            if player.role.is_some() {
+                show_role = *player.role.as_ref().unwrap() == Role::Bugged;
+            }
         }
         Err(RedisHelperError::MissingKey) => {
             show_role = false;

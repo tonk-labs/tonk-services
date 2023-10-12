@@ -232,25 +232,6 @@ impl SyncGraph {
             let mut nearby_buildings: Vec<tonk_shared_lib::Building> = Vec::new();
             let player_cube_coord = Cube::new(players[i].location.as_ref().unwrap());
             players[i].immune = Some(false);
-            for j in 0..players.len() {
-                let other_cube_coord = Cube::new(players[j].location.as_ref().unwrap());
-                let distance = player_cube_coord.distance(&other_cube_coord);
-                let is_another_bug = players[j].role.as_ref().unwrap_or(&tonk_shared_lib::Role::Bugged).clone() == tonk_shared_lib::Role::Bugged;
-                if distance < 3 && j != i && !is_another_bug {
-                    nearby_players.push(tonk_shared_lib::Player {
-                        id: players[j].id.clone(),
-                        mobile_unit_id: players[j].mobile_unit_id.clone(),
-                        display_name: players[j].display_name.clone(),
-                        nearby_buildings: None,
-                        used_action: None,
-                        immune: None,
-                        nearby_players: None,
-                        secret_key: None,
-                        role: None,
-                        location: players[j].location.clone()
-                    });
-                }
-            }
             for j in 0..buildings.len() {
                 let buildings_cube_coord = Cube::new(buildings[j].location.as_ref().unwrap());
                 let distance = player_cube_coord.distance(&buildings_cube_coord);
@@ -266,6 +247,34 @@ impl SyncGraph {
                     players[i].immune = Some(true);
                 } 
             }
+
+            let mut show_role = false;
+            if players[i].role.is_some() && *players[i].role.as_ref().unwrap() == tonk_shared_lib::Role::Bugged {
+                show_role = true;
+            }
+            for j in 0..players.len() {
+                let other_cube_coord = Cube::new(players[j].location.as_ref().unwrap());
+                let distance = player_cube_coord.distance(&other_cube_coord);
+                let is_another_bug = players[j].role.as_ref().unwrap_or(&tonk_shared_lib::Role::Bugged).clone() == tonk_shared_lib::Role::Bugged;
+                if distance < 3 && j != i && !is_another_bug {
+                    let mut role = None;
+                    if show_role {
+                        role = players[j].role.clone()
+                    } 
+                    nearby_players.push(tonk_shared_lib::Player {
+                        id: players[j].id.clone(),
+                        mobile_unit_id: players[j].mobile_unit_id.clone(),
+                        display_name: players[j].display_name.clone(),
+                        nearby_buildings: None,
+                        used_action: None,
+                        immune: players[j].immune,
+                        nearby_players: None,
+                        secret_key: None,
+                        role,
+                        location: players[j].location.clone()
+                    });
+                }
+            }
             players[i].nearby_players = Some(nearby_players);
             players[i].nearby_buildings = Some(nearby_buildings);
         }
@@ -276,7 +285,10 @@ impl SyncGraph {
         let game: tonk_shared_lib::Game = self.redis.get_key("game").await?;
         let game_index = format!("game:{}:player_index", game.id);
         let mut game_players: Vec<tonk_shared_lib::Player> = self.redis.get_index(&game_index).await?;
+        // let mut reg_players: Vec<tonk_shared_lib::Player> = self.redis.get_index("player:index").await?;
+        // print!("{:?}", reg_players);
         let ids: Vec<String> = game_players.iter_mut().map(|p| p.mobile_unit_id.clone().unwrap_or("".to_string()) ).collect();
+        // println!("{:?}", ids);
         if ids.len() == 0 {
             println!("{:?}", "skipping location update, no players in the game");
             return Ok(());
@@ -301,6 +313,7 @@ impl SyncGraph {
             self.calculate_distance(&mut game_players).await?;
             for player in game_players {
                 let player_key = format!("player:{}", player.id);
+                // println!("immunity for {:?}:{:?}", player.display_name, player.immune);
                 let _: () = self.redis.set_key(&player_key, &player).await?;
             }
             Ok(())

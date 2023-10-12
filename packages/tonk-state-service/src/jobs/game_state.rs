@@ -1,9 +1,10 @@
-use tonk_shared_lib::{Game, Player, GameStatus, Action, Time, Task, RoundResult, Vote, Role};
+use tonk_shared_lib::{Game, Player, GameStatus, Action, Time, Task, RoundResult, Vote, Role, Elimination, EliminationReason, WinResult};
 use tonk_shared_lib::redis_helper::*;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::cmp::Eq;
 use std::collections::HashSet;
+use std::ops::Index;
 use uuid::Uuid;
 use crate::jobs::error::*;
 
@@ -41,6 +42,7 @@ impl GameState {
                 timer: 0,
                 round: 0
             }),
+            win_result: None
         };
         let _ = self.redis.set_key("game", &game).await?;
         Ok(())
@@ -69,9 +71,33 @@ impl GameState {
             }
         }
 
+        // check for inactive players
+        let player_index_key = format!("game:{}:player_index", game.id);
+        let players: Vec<Player> = self.redis.get_index(&player_index_key).await.map_err(|e| JobError::RedisError )?;
+
+        let inactive_players: Vec<Elimination> = players.iter().filter(|p| {
+            p.used_action.is_some() && !p.used_action.unwrap()
+        }).map(|p| {
+            Elimination {
+                player: p.clone(),
+                reason: EliminationReason::Inaction
+            }
+        }).collect();
+
+        let mut eliminated_players: Vec<Elimination> = Vec::new(); 
+
         if max_candidate.is_some() {
-            vote_result.eliminated  = Some(vec![max_candidate.as_ref().unwrap().clone()]);
+              eliminated_players.push(Elimination {
+                player: max_candidate.as_ref().unwrap().clone(),
+                reason: EliminationReason::VotedOut
+            });
         }
+
+        for inactive_player in inactive_players {
+            eliminated_players.push(inactive_player);
+        }
+
+        vote_result.eliminated = Some(eliminated_players);
 
         let result_key = format!("result:{}:{}", game.id, game.time.as_ref().unwrap().round);
         let _ = self.redis.set_key(&result_key, &vote_result).await.map_err(|e| JobError::RedisError)?;
@@ -88,8 +114,11 @@ impl GameState {
 
         // we need to count all the players eliminated
         let actions: Vec<Action> = self.redis.get_index("game:actions").await.map_err(|e| JobError::RedisError)?;
-        let eliminated_players: Vec<Player> = actions.iter().map(|a| {
-            a.poison_target.clone()
+        let mut eliminated_players: Vec<Elimination> = actions.iter().map(|a| {
+            Elimination {
+                player: a.poison_target.clone(),
+                reason: EliminationReason::BuggedOut
+            }
         }).collect();
         let interrupted_ids: HashSet<String> = actions
             .iter()
@@ -110,9 +139,28 @@ impl GameState {
                 assignee: None,
                 destination: None,
                 round: t.round,
+                dropped_off: t.dropped_off,
                 complete: t.complete 
             }
         }).collect();
+
+        // check for inactive players
+        let player_index_key = format!("game:{}:player_index", game.id);
+        let players: Vec<Player> = self.redis.get_index(&player_index_key).await.map_err(|e| JobError::RedisError )?;
+
+        let inactive_players: Vec<Elimination> = players.iter().filter(|p| {
+            p.used_action.is_some() && !p.used_action.unwrap()
+        }).map(|p| {
+            Elimination {
+                player: p.clone(),
+                reason: EliminationReason::Inaction
+            }
+        }).collect();
+
+        for inactive_player in inactive_players {
+            eliminated_players.push(inactive_player);
+        }
+
         task_result.eliminated = Some(eliminated_players);
         task_result.tasks_completed = Some(filtered_tasks);
         
@@ -128,8 +176,19 @@ impl GameState {
         let prior_result: RoundResult = self.redis.get_key(&result_key).await?;
 
         let player_index_key = format!("game:{}:player_index", game.id);
+        let players: Vec<Player> = self.redis.get_index(&player_index_key).await?;
+
+        for player in players {
+                let player_key = format!("player:{}", player.id);
+                let mut reset_player = player.clone();
+                reset_player.used_action = Some(false); 
+
+                self.redis.set_key(&player_key, &reset_player).await?;
+        }
+
         if prior_result.eliminated.is_some() {
-            for player in prior_result.eliminated.as_ref().unwrap() {
+            for elimination in prior_result.eliminated.as_ref().unwrap() {
+                let player = &elimination.player;
                 let player_key = format!("player:{}", player.id);
                 self.redis.remove_from_index(&player_index_key, &player_key).await?;
             }
@@ -153,11 +212,34 @@ impl GameState {
             }
         }
 
+
+
         // clear out actions, tasks, votes
         self.redis.clear_index("game:actions").await?;
         self.redis.clear_index("game:tasks").await?;
         self.redis.clear_index("game:votes").await?;
 
+        Ok(())
+    }
+
+    async fn clear_player_state(&self) -> Result<(), JobError> {
+        let players: Vec<Player> = self.redis.get_index("player:index").await?;
+        for player in players {
+            let clean_player = Player {
+                id: player.id.clone(),
+                mobile_unit_id: player.mobile_unit_id.clone(),
+                display_name: player.display_name.clone(),
+                secret_key: None,
+                nearby_buildings: None,
+                nearby_players: None,
+                location: None,
+                role: None,
+                used_action: None,
+                immune: None
+            };
+            let player_key = format!("player:{}", player.id);
+            let _ = self.redis.set_key(&player_key, &clean_player).await?;
+        }
         Ok(())
     }
 
@@ -173,33 +255,37 @@ impl GameState {
         let game_player_index = format!("game:{}:player_index", game.id);
         self.redis.clear_index(&game_player_index).await?;
 
+        // clear the state of all players
+        self.clear_player_state().await?;
+
         // create a new game
         self.create_game().await?;
 
         Ok(())
     }
 
-    async fn check_end_game_condition(&self, game: &Game) -> Result<bool, JobError> {
+    async fn check_end_game_condition(&self, game: &Game) -> Result<WinResult, JobError> {
         let result_key = format!("result:{}:{}", game.id, game.time.as_ref().unwrap().round);
         let result: RoundResult = self.redis.get_key(&result_key).await?;
         let game_player_index = format!("game:{}:player_index", game.id);
         let players: Vec<Player> = self.redis.get_index(&game_player_index).await?;
 
         // all tasks were completed
-        // if result.round_type == GameStatus::TaskResult {
-        //     let tasks: Vec<Task> = self.redis.get_index("game:tasks").await.map_err(|e| JobError::RedisError)?;
+        if result.round_type == GameStatus::TaskResult {
+            let tasks: Vec<Task> = self.redis.get_index("game:tasks").await.map_err(|e| JobError::RedisError)?;
 
-        //     if tasks.len() == result.tasks_completed.as_ref().unwrap().len() {
-        //         // find all the saboteurs
-        //         for player in players {
-        //             if *player.role.as_ref().unwrap() == Role::Bugged {
-        //                 let player_key = format!("player:{}", player.id);
-        //                 let _ =self.redis.remove_from_index(&game_player_index, &player_key).await?;
-        //             }
-        //         }
-        //         return Ok(true);
-        //     }
-        // }
+            // we disable this for games of 2 players to allow for a limited setup demo 
+            if tasks.len() == result.tasks_completed.as_ref().unwrap().len() && players.len() > 2 {
+                // find all the saboteurs
+                for player in players {
+                    if *player.role.as_ref().unwrap() == Role::Bugged {
+                        let player_key = format!("player:{}", player.id);
+                        let _ = self.redis.remove_from_index(&game_player_index, &player_key).await?;
+                    }
+                }
+                return Ok(WinResult::Perfection);
+            }
+        }
 
         
         let eliminated_ids: HashSet<String> = result
@@ -207,7 +293,7 @@ impl GameState {
             .as_ref()
             .unwrap_or(&Vec::new())
             .iter()
-            .map(|player| player.id.clone())
+            .map(|elimination| elimination.player.id.clone())
             .collect();
 
         let remaining_players: Vec<&Player> = players
@@ -225,7 +311,7 @@ impl GameState {
         });
 
         if number_of_bugs as f64 > (remaining_players.len() as f64 * 0.5) {
-            return Ok(true);
+            return Ok(WinResult::Thuggery);
         }
 
         // everyone is killed, only saboteurs remain
@@ -245,11 +331,19 @@ impl GameState {
             }
         });
 
-        if no_saboteurs_remain || no_villagers_remain {
-            return Ok(true);
+        if no_saboteurs_remain && no_villagers_remain {
+            return Ok(WinResult::Armageddon);
         }
 
-        Ok(false)
+        if no_saboteurs_remain {
+            return Ok(WinResult::Democracy);
+        }
+
+        if no_villagers_remain {
+            return Ok(WinResult::Thuggery);
+        }
+
+        Ok(WinResult::Null)
     }
 
     async fn update_logic(&self, game: Game) -> Result<(), JobError> {
@@ -273,6 +367,7 @@ impl GameState {
                             timer: 15,
                             round: time.round
                         }),
+                        win_result: None
                     };
                     let _ = self.redis.set_key("game", &next_game).await?;
                 }
@@ -287,7 +382,7 @@ impl GameState {
                 // CHECK END CONDITIONS
                 let is_end = self.check_end_game_condition(&game).await?;
                     self.reset_round(&game).await?;
-                    if is_end {
+                    if is_end != WinResult::Null {
                         let next_game = Game {
                             id: game.id.clone(),
                             status: GameStatus::End,
@@ -295,6 +390,7 @@ impl GameState {
                                 timer: 30,
                                 round: time.round 
                             }),
+                            win_result: Some(is_end)
                         };
                         let _ = self.redis.set_key("game", &next_game).await?;
                     } else {
@@ -302,9 +398,10 @@ impl GameState {
                             id: game.id.clone(),
                             status: GameStatus::Vote,
                             time: Some(Time {
-                                timer: 30,
+                                timer: 60,
                                 round: time.round + 1
                             }),
+                            win_result: None
                         };
                         let _ = self.redis.set_key("game", &next_game).await?;
                     }
@@ -324,6 +421,7 @@ impl GameState {
                             timer: 15,
                             round: time.round
                         }),
+                        win_result: None
                     };
                     let _ = self.redis.set_key("game", &next_game).await?;
                 }
@@ -339,7 +437,7 @@ impl GameState {
                 if time.timer == 0 {
                     let is_end = self.check_end_game_condition(&game).await?;
                     self.reset_round(&game.clone()).await?;
-                    if is_end {
+                    if is_end != WinResult::Null {
                         let next_game = Game {
                             id: game.id.clone(),
                             status: GameStatus::End,
@@ -347,6 +445,7 @@ impl GameState {
                                 timer: 30,
                                 round: time.round
                             }),
+                            win_result: Some(is_end)
                         };
                         let _ = self.redis.set_key("game", &next_game).await?;
                     } else {
@@ -354,11 +453,12 @@ impl GameState {
                             id: game.id.clone(),
                             status: GameStatus::Tasks,
                             time: Some(Time {
-                                timer: 30,
+                                timer: 60,
                                 round: time.round + 1
                             }),
+                            win_result: None
                         };
-                        let _ = self.redis.set_key("game", &next_game).await?;
+                        self.redis.set_key("game", &next_game).await?;
                     }
                 }
 

@@ -62,7 +62,10 @@ pub async fn post_player(_id: web::Json<Player>, _path: web::Path<String>) -> Re
             })?;
             return Ok(HttpResponse::Ok().finish());
         // }
-    } else if player.is_ok() && player_obj.display_name != player.as_ref().unwrap().display_name {
+    } else if player.is_ok() && 
+        (player_obj.display_name != player.as_ref().unwrap().display_name ||
+        player_obj.mobile_unit_id != player.as_ref().unwrap().mobile_unit_id)
+    {
         let cp = player.as_ref().unwrap().clone();
         let registered_player = Player {
             id: cp.id,
@@ -82,7 +85,7 @@ pub async fn post_player(_id: web::Json<Player>, _path: web::Path<String>) -> Re
             actix_web::error::ErrorInternalServerError(e)
         })?;
         return Ok(HttpResponse::Ok().finish());
-    }
+    } 
 
     Err(actix_web::error::ErrorInternalServerError("unknown error"))
 }
