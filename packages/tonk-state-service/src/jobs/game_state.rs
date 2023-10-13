@@ -86,7 +86,9 @@ impl GameState {
 
         let mut eliminated_players: Vec<Elimination> = Vec::new(); 
 
+        let mut max_candidate_id: String = "".to_string();
         if max_candidate.is_some() {
+            max_candidate_id = max_candidate.as_ref().unwrap().id.clone();
               eliminated_players.push(Elimination {
                 player: max_candidate.as_ref().unwrap().clone(),
                 reason: EliminationReason::VotedOut
@@ -94,7 +96,9 @@ impl GameState {
         }
 
         for inactive_player in inactive_players {
-            eliminated_players.push(inactive_player);
+            if inactive_player.player.id != max_candidate_id {
+                eliminated_players.push(inactive_player);
+            }
         }
 
         vote_result.eliminated = Some(eliminated_players);
@@ -112,9 +116,12 @@ impl GameState {
             tasks_completed: None,
         };
 
+        let mut eliminations: HashSet<String> = HashSet::new();
+
         // we need to count all the players eliminated
         let actions: Vec<Action> = self.redis.get_index("game:actions").await.map_err(|e| JobError::RedisError)?;
         let mut eliminated_players: Vec<Elimination> = actions.iter().map(|a| {
+            eliminations.insert(a.poison_target.id.clone());
             Elimination {
                 player: a.poison_target.clone(),
                 reason: EliminationReason::BuggedOut
@@ -158,7 +165,9 @@ impl GameState {
         }).collect();
 
         for inactive_player in inactive_players {
-            eliminated_players.push(inactive_player);
+            if !eliminations.contains(&inactive_player.player.id) {
+                eliminated_players.push(inactive_player);
+            }
         }
 
         task_result.eliminated = Some(eliminated_players);
