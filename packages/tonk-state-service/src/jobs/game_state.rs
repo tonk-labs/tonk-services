@@ -232,6 +232,15 @@ impl GameState {
         Ok(())
     }
 
+    async fn check_all_votes_in(&self, game: &Game) -> Result<bool, JobError> {
+        let player_index_key = format!("game:{}:player_index", game.id);
+        let player_keys = self.redis.get_index_keys(&player_index_key).await?;
+
+        let vote_keys = self.redis.get_index_keys("game:votes").await?;
+
+        Ok(player_keys.len() == vote_keys.len())
+    }
+
     async fn clear_player_state(&self) -> Result<(), JobError> {
         let players: Vec<Player> = self.redis.get_index("player:index").await?;
         for player in players {
@@ -424,8 +433,9 @@ impl GameState {
             GameStatus::Vote => {
                 // if the game is in the vote phase, we move the game into the vote result phase at the right time
                 let time = game.time.as_ref().unwrap();
+                let all_votes_in = self.check_all_votes_in(&game).await?;
 
-                if time.timer == 0 {
+                if time.timer == 0 || all_votes_in {
                     self.set_vote_result(&game).await?;
                     let next_game = Game {
                         id: game.id,
