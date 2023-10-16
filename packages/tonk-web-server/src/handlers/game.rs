@@ -93,6 +93,12 @@ pub async fn post_game() -> Result<HttpResponse, Error> {
                 round: 0,
                 timer: 90,
             });
+
+            // a special case game where certain rules don't apply to allow for a demo 
+            if players.len() == 2 {
+                current_game.demo_play = true;
+            }
+
             redis.set_key("game", &current_game).await.map_err(|e| {
                 error!("{:?}", e);
                 actix_web::error::ErrorInternalServerError(e)
@@ -123,6 +129,7 @@ pub async fn get_game() -> Result<HttpResponse, Error> {
             let empty_game = Game {
                 id: "".to_string(),
                 status: GameStatus::Null,
+                demo_play: false,
                 time: None,
                 win_result: None
             };
@@ -262,6 +269,25 @@ pub async fn get_result() -> Result<HttpResponse, Error> {
     })?;
 
     let result_key = format!("result:{}:{}", game.id, game.time.as_ref().unwrap().round);
+    let result: RoundResult = redis.get_key(&result_key).await.map_err(|e| {
+        error!("{:?}", e);
+        actix_web::error::ErrorInternalServerError("unknown error")
+    })?;
+
+    Ok(HttpResponse::Ok().json(result))
+}
+
+pub async fn get_round_result(round_num: web::Path<String>) -> Result<HttpResponse, Error> {
+    let redis = RedisHelper::init().await.map_err(|e| {
+        error!("{:?}", e);
+        actix_web::error::ErrorInternalServerError(e)
+    })?;
+    let game: Game = redis.get_key("game").await.map_err(|e| { 
+        error!("{:?}", e);
+        actix_web::error::ErrorInternalServerError("unknown error")
+    })?;
+
+    let result_key = format!("result:{}:{}", game.id, round_num);
     let result: RoundResult = redis.get_key(&result_key).await.map_err(|e| {
         error!("{:?}", e);
         actix_web::error::ErrorInternalServerError("unknown error")

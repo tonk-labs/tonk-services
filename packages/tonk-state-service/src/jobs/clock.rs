@@ -26,6 +26,7 @@ impl Clock {
             let next_game = Game {
                 id: game.id,
                 status: game.status,
+                demo_play: game.demo_play,
                 time: Some(Time {
                     timer: time.timer - 1,
                     round: time.round

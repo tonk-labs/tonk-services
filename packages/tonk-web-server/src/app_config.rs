@@ -31,8 +31,18 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                     .route(web::post().to(game::post_game))
             )
             .service(
-                web::resource("/result")
-                    .route(web::get().to(game::get_result))
+                web::scope("/result")
+                .service(
+                    web::resource("")
+                        .route(web::get().to(game::get_result))
+                )
+                .service(
+                    web::scope("/{round_number}")
+                        .service(
+                            web::resource("")
+                                .route(web::get().to(game::get_round_result))
+                        )
+                )
             )
             .service(
                 web::scope("/{game_id}")

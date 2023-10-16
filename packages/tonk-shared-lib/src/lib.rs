@@ -48,7 +48,8 @@ pub struct Game {
     pub id: String,
     pub status: GameStatus,
     pub time: Option<Time>,
-    pub win_result: Option<WinResult>
+    pub win_result: Option<WinResult>,
+    pub demo_play: bool,
 }
 
 #[derive(Encode, Decode, Serialize, Deserialize, PartialEq, Clone, Debug)]

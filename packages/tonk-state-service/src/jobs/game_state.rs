@@ -38,6 +38,7 @@ impl GameState {
         let game = Game {
             id: Uuid::new_v4().as_simple().to_string(),
             status: GameStatus::Lobby,
+            demo_play: false,
             time: Some(Time {
                 timer: 0,
                 round: 0
@@ -96,7 +97,7 @@ impl GameState {
         }
 
         for inactive_player in inactive_players {
-            if inactive_player.player.id != max_candidate_id {
+            if inactive_player.player.id != max_candidate_id && !game.demo_play {
                 eliminated_players.push(inactive_player);
             }
         }
@@ -165,7 +166,7 @@ impl GameState {
         }).collect();
 
         for inactive_player in inactive_players {
-            if !eliminations.contains(&inactive_player.player.id) {
+            if !eliminations.contains(&inactive_player.player.id) && !game.demo_play {
                 eliminated_players.push(inactive_player);
             }
         }
@@ -284,7 +285,7 @@ impl GameState {
             let tasks: Vec<Task> = self.redis.get_index("game:tasks").await.map_err(|e| JobError::RedisError)?;
 
             // we disable this for games of 2 players to allow for a limited setup demo 
-            if tasks.len() == result.tasks_completed.as_ref().unwrap().len() && players.len() > 2 {
+            if tasks.len() == result.tasks_completed.as_ref().unwrap().len() && !game.demo_play {
                 // find all the saboteurs
                 for player in players {
                     if *player.role.as_ref().unwrap() == Role::Bugged {
@@ -372,6 +373,7 @@ impl GameState {
                     let next_game = Game {
                         id: game.id,
                         status: GameStatus::TaskResult,
+                        demo_play: game.demo_play,
                         time: Some(Time {
                             timer: 15,
                             round: time.round
@@ -395,6 +397,7 @@ impl GameState {
                         let next_game = Game {
                             id: game.id.clone(),
                             status: GameStatus::End,
+                            demo_play: game.demo_play,
                             time: Some(Time {
                                 timer: 30,
                                 round: time.round 
@@ -406,6 +409,7 @@ impl GameState {
                         let next_game = Game {
                             id: game.id.clone(),
                             status: GameStatus::Vote,
+                            demo_play: game.demo_play,
                             time: Some(Time {
                                 timer: 90,
                                 round: time.round + 1
@@ -426,6 +430,7 @@ impl GameState {
                     let next_game = Game {
                         id: game.id,
                         status: GameStatus::VoteResult,
+                        demo_play: game.demo_play,
                         time: Some(Time {
                             timer: 30,
                             round: time.round
@@ -450,6 +455,7 @@ impl GameState {
                         let next_game = Game {
                             id: game.id.clone(),
                             status: GameStatus::End,
+                            demo_play: game.demo_play,
                             time: Some(Time {
                                 timer: 30,
                                 round: time.round
@@ -461,6 +467,7 @@ impl GameState {
                         let next_game = Game {
                             id: game.id.clone(),
                             status: GameStatus::Tasks,
+                            demo_play: game.demo_play,
                             time: Some(Time {
                                 timer: 90,
                                 round: time.round + 1
