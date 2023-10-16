@@ -53,7 +53,7 @@ pub async fn post_game() -> Result<HttpResponse, Error> {
             }
 
             // we don't want the number of bugs to outnumber the players
-            let max_bugs = (players.len() as f64 * 0.4).round() as usize;
+            let max_bugs = (players.len() as f64 * 0.25).floor() as usize;
 
             // the purely stochastic bug player setup
             let mut new_players: Vec<Player> = Vec::new();
@@ -91,7 +91,7 @@ pub async fn post_game() -> Result<HttpResponse, Error> {
             current_game.status = GameStatus::Tasks;
             current_game.time = Some(Time {
                 round: 0,
-                timer: 60,
+                timer: 90,
             });
             redis.set_key("game", &current_game).await.map_err(|e| {
                 error!("{:?}", e);

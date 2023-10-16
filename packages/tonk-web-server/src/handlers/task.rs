@@ -20,7 +20,7 @@ async fn get_random_depot(redis: &mut RedisHelper) -> Result<Building, Box<dyn s
         actix_web::error::ErrorInternalServerError(e)
     })?;
 
-    let random_index = rng.gen_range(0..buildings.len()-1);
+    let random_index = rng.gen_range(0..buildings.len()-1); 
     let depots: Vec<&Building> = buildings.iter().filter(|e| {
         !e.is_tower
     }).collect();

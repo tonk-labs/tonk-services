@@ -407,7 +407,7 @@ impl GameState {
                             id: game.id.clone(),
                             status: GameStatus::Vote,
                             time: Some(Time {
-                                timer: 60,
+                                timer: 90,
                                 round: time.round + 1
                             }),
                             win_result: None
@@ -427,7 +427,7 @@ impl GameState {
                         id: game.id,
                         status: GameStatus::VoteResult,
                         time: Some(Time {
-                            timer: 15,
+                            timer: 30,
                             round: time.round
                         }),
                         win_result: None
@@ -462,7 +462,7 @@ impl GameState {
                             id: game.id.clone(),
                             status: GameStatus::Tasks,
                             time: Some(Time {
-                                timer: 60,
+                                timer: 90,
                                 round: time.round + 1
                             }),
                             win_result: None
