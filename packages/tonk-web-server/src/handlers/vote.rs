@@ -28,10 +28,16 @@ pub async fn post_vote(_id: web::Json<Vote>, _query: web::Query<VoteQuery>, req:
 
     let mut vote = _id.0.clone();
     let player_id = &_query.player_id;
+    let player_key = format!("player:{}", player_id);
     let candidate_key = format!("player:{}", vote.candidate.id);
     let vote_key = format!("vote:{}:{}:{}", game.id, round, player_id);
 
-    let mut candidate: Player = redis.get_key(&candidate_key).await.map_err(|e| {
+    let candidate: Player = redis.get_key(&candidate_key).await.map_err(|e| {
+        error!("{:?}", e);
+        actix_web::error::ErrorInternalServerError("Unknown error")
+    })?;
+
+    let mut player: Player = redis.get_key(&player_key).await.map_err(|e| {
         error!("{:?}", e);
         actix_web::error::ErrorInternalServerError("Unknown error")
     })?;
@@ -44,8 +50,8 @@ pub async fn post_vote(_id: web::Json<Vote>, _query: web::Query<VoteQuery>, req:
                 error!("{:?}", e);
                 actix_web::error::ErrorInternalServerError("Unknown error")
             })?;
-            candidate.used_action = Some(true);
-            redis.set_key(&candidate_key, &candidate).await.map_err(|e| {
+            player.used_action = Some(true);
+            redis.set_key(&player_key, &player).await.map_err(|e| {
                 error!("{:?}", e);
                 actix_web::error::ErrorInternalServerError("Unknown error")
             })?;

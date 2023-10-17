@@ -188,10 +188,14 @@ impl GameState {
         let player_index_key = format!("game:{}:player_index", game.id);
         let players: Vec<Player> = self.redis.get_index(&player_index_key).await?;
 
+        println!("Calling reset round!");
+
         for player in players {
                 let player_key = format!("player:{}", player.id);
                 let mut reset_player = player.clone();
                 reset_player.used_action = Some(false); 
+
+                println!("resetting used_action for player {}!", player_key);
 
                 self.redis.set_key(&player_key, &reset_player).await?;
         }
@@ -399,8 +403,8 @@ impl GameState {
                 let time = game.time.as_ref().unwrap();
 
                 if time.timer == 0 {
-                // CHECK END CONDITIONS
-                let is_end = self.check_end_game_condition(&game).await?;
+                    // CHECK END CONDITIONS
+                    let is_end = self.check_end_game_condition(&game).await?;
                     self.reset_round(&game).await?;
                     if is_end != WinResult::Null {
                         let next_game = Game {
@@ -415,6 +419,7 @@ impl GameState {
                         };
                         let _ = self.redis.set_key("game", &next_game).await?;
                     } else {
+                        self.reset_round(&game).await?;
                         let next_game = Game {
                             id: game.id.clone(),
                             status: GameStatus::Vote,

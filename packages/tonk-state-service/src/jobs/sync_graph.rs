@@ -308,12 +308,17 @@ impl SyncGraph {
             // println!("{:?}", result.as_ref().unwrap());
         }
 
+
         if let Some(data) = result.unwrap() {
             self.update_locations_player(&data, &mut game_players);
             self.calculate_distance(&mut game_players).await?;
-            for player in game_players {
+            for mut player in game_players {
                 let player_key = format!("player:{}", player.id);
                 // println!("immunity for {:?}:{:?}", player.display_name, player.immune);
+                // SUPER hacky, but we're just going to do this everywhere for now to get the job done.
+                if game.status == tonk_shared_lib::GameStatus::TaskResult || game.status == tonk_shared_lib::GameStatus::VoteResult {
+                    player.used_action = Some(false);
+                }
                 let _: () = self.redis.set_key(&player_key, &player).await?;
             }
             Ok(())
