@@ -91,7 +91,7 @@ pub async fn post_game() -> Result<HttpResponse, Error> {
             current_game.status = GameStatus::Tasks;
             current_game.time = Some(Time {
                 round: 0,
-                timer: 90,
+                timer: 150,
             });
 
             // a special case game where certain rules don't apply to allow for a demo 

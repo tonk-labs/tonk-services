@@ -484,7 +484,7 @@ impl GameState {
                             status: GameStatus::Tasks,
                             demo_play: game.demo_play,
                             time: Some(Time {
-                                timer: 90,
+                                timer: 150,
                                 round: time.round + 1
                             }),
                             win_result: None
