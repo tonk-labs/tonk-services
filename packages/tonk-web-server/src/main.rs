@@ -24,7 +24,7 @@ async fn main() -> std::io::Result<()> {
             dotenv::from_filename(".env.local").ok();
         }
     }
-    let origin = env::var("ALLOWED_ORIGIN").unwrap();
+    // let origin = env::var("ALLOWED_ORIGIN").unwrap();
     HttpServer::new(move || {
         App::new()
             .wrap(
@@ -32,8 +32,6 @@ async fn main() -> std::io::Result<()> {
                     .allow_any_origin()
                     .allow_any_method()
                     .allow_any_header()
-                    // .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT])
-                    // .allowed_header(header::CONTENT_TYPE)
                     .send_wildcard()
             )
             .configure(app_config::config)

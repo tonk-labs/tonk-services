@@ -42,8 +42,20 @@ pub async fn get_task(_query: web::Query<TaskQuery>, req: HttpRequest) -> Result
     if game.status != GameStatus::Tasks {
         return Err(actix_web::error::ErrorForbidden("The game is not in the task round"));
     }
+
+    let index_key = format!("game:{}:player_index", game.id);
+    let player_keys: Vec<String> = redis.get_index_keys(&index_key).await.map_err(|e| { 
+        error!("{:?}", e);
+        actix_web::error::ErrorInternalServerError("Unknown error")
+    })?;
+
     let player_id = &_query.player_id;
     let player_key = format!("player:{}", player_id);
+
+    if player_keys.iter().find(|k| **k == player_key).is_none() {
+        return Err(actix_web::error::ErrorForbidden("Player is not in the game"));
+    }
+
     let player: Player = redis.get_key(&player_key).await.map_err(|e| {
         error!("{:?}", e);
         actix_web::error::ErrorInternalServerError("Unknown error")

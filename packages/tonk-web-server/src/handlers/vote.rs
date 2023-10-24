@@ -29,6 +29,18 @@ pub async fn post_vote(_id: web::Json<Vote>, _query: web::Query<VoteQuery>, req:
     let mut vote = _id.0.clone();
     let player_id = &_query.player_id;
     let player_key = format!("player:{}", player_id);
+
+    let index_key = format!("game:{}:player_index", game.id);
+    let player_keys: Vec<String> = redis.get_index_keys(&index_key).await.map_err(|e| { 
+        error!("{:?}", e);
+        actix_web::error::ErrorInternalServerError("Unknown error")
+    })?;
+
+    if player_keys.iter().find(|k| **k == player_key).is_none() {
+        return Err(actix_web::error::ErrorForbidden("Player is not in the game"));
+    }
+
+
     let candidate_key = format!("player:{}", vote.candidate.id);
     let vote_key = format!("vote:{}:{}:{}", game.id, round, player_id);
 

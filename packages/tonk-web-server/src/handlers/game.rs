@@ -194,8 +194,6 @@ pub async fn get_game_players(_query: web::Query<PlayerQuery>) -> Result<HttpRes
         }
     }
 
-
-
     let index_key = format!("game:{}:player_index", game.id);
     let players: Vec<Player> = redis.get_index(&index_key).await.map_err(|e| { 
         error!("{:?}", e);
