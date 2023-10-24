@@ -156,9 +156,11 @@ fn sanitize_players(players: &Vec<Player>, show_role: bool) -> Vec<Player> {
             display_name: p.display_name.clone(),
             role,
             used_action: None,
+            last_round_action: None,
             secret_key: None,
             location: None,
             immune: p.immune,
+            eliminated: None
         }
     }).collect()
 }

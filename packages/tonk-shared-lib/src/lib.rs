@@ -32,12 +32,15 @@ pub struct Player {
     pub location: Option<Location>,
     pub role: Option<Role>,
     pub used_action: Option<bool>,
-    pub immune: Option<bool>
+    pub last_round_action: Option<u32>,
+    pub immune: Option<bool>,
+    pub eliminated: Option<bool>
 }
 
 #[derive(Serialize, Deserialize, Encode, Decode, Hash, Eq, PartialEq, Clone, Debug)]
 pub struct Building {
     pub id: String,
+    pub readable_id: String,
     pub location: Option<Location>,
     pub task_message: String,
     pub is_tower: bool

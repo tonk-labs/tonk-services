@@ -47,9 +47,11 @@ pub async fn post_player(_id: web::Json<Player>, _path: web::Path<String>) -> Re
                 immune: None,
                 role: None,
                 used_action: Some(false),
+                last_round_action: None,
                 // secret_key: Some(secret.clone().to_string()),
                 secret_key: None,
                 location: None,
+                eliminated: None
             };
             let _ = redis.set_key(&player_key, &registered_player).await.map_err(|e| {
                 error!("{:?}", e);
@@ -73,6 +75,7 @@ pub async fn post_player(_id: web::Json<Player>, _path: web::Path<String>) -> Re
             nearby_buildings: cp.nearby_buildings,
             nearby_players: cp.nearby_players,
             mobile_unit_id: cp.mobile_unit_id,
+            last_round_action: cp.last_round_action,
             display_name: player_obj.display_name,
             immune: cp.immune,
             role: cp.role,
@@ -80,6 +83,7 @@ pub async fn post_player(_id: web::Json<Player>, _path: web::Path<String>) -> Re
             // secret_key: Some(secret.clone().to_string()),
             secret_key: cp.secret_key,
             location: cp.location,
+            eliminated: None
         };
         let _ = redis.set_key(&player_key, &registered_player).await.map_err(|e| {
             error!("{:?}", e);
@@ -112,11 +116,13 @@ pub async fn get_player(_id: web::Path<String>) -> Result<HttpResponse, Error> {
             nearby_players: None,
             role: None,
             used_action: None,
+            last_round_action: None,
             display_name: None,
             mobile_unit_id: None,
             immune: None,
             secret_key: None,
-            location: None
+            location: None,
+            eliminated: None
         }))
     } else if let Ok(registered_player) = player {
         // let wrapper_player = registered_player.clone();

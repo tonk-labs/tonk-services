@@ -238,6 +238,7 @@ impl SyncGraph {
                 if distance < 2 {
                     nearby_buildings.push(tonk_shared_lib::Building { 
                         id: buildings[j].id.clone(), 
+                        readable_id: buildings[j].readable_id.clone(),
                         location: buildings[j].location.clone(), 
                         is_tower: buildings[j].is_tower,
                         task_message: "".to_string(),
@@ -268,10 +269,12 @@ impl SyncGraph {
                         nearby_buildings: None,
                         used_action: None,
                         immune: players[j].immune,
+                        last_round_action: None,
                         nearby_players: None,
                         secret_key: None,
                         role,
-                        location: players[j].location.clone()
+                        location: players[j].location.clone(),
+                        eliminated: None
                     });
                 }
             }
@@ -308,6 +311,7 @@ impl SyncGraph {
             // println!("{:?}", result.as_ref().unwrap());
         }
 
+        let round = game.time.as_ref().unwrap().round;
 
         if let Some(data) = result.unwrap() {
             self.update_locations_player(&data, &mut game_players);
@@ -315,8 +319,8 @@ impl SyncGraph {
             for mut player in game_players {
                 let player_key = format!("player:{}", player.id);
                 // println!("immunity for {:?}:{:?}", player.display_name, player.immune);
-                // SUPER hacky, but we're just going to do this everywhere for now to get the job done.
-                if game.status == tonk_shared_lib::GameStatus::TaskResult || game.status == tonk_shared_lib::GameStatus::VoteResult {
+                // SUPER hacky, but we're just going to do this for now to get the job done.
+                if player.last_round_action.is_some() && *player.last_round_action.as_ref().unwrap() < round {
                     player.used_action = Some(false);
                 }
                 let _: () = self.redis.set_key(&player_key, &player).await?;

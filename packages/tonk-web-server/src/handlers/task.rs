@@ -51,7 +51,7 @@ pub async fn get_task(_query: web::Query<TaskQuery>, req: HttpRequest) -> Result
     if *player.role.as_ref().unwrap() == Role::Bugged {
         let empty_task = Task {
             assignee: Some(player.clone()),
-            destination: Some(Building { id: "".to_string(), location: None, task_message: "You are a bug and hunger to bug out others.".to_string(), is_tower: false }),
+            destination: Some(Building { id: "".to_string(), readable_id: "".to_string(), location: None, task_message: "You are a bug and hunger to bug out others.".to_string(), is_tower: false }),
             round: game.time.as_ref().unwrap().round.clone(),
             dropped_off: false,
             complete: false
@@ -74,10 +74,12 @@ pub async fn get_task(_query: web::Query<TaskQuery>, req: HttpRequest) -> Result
                     nearby_players: None, 
                     used_action: None,
                     immune: None,
+                    last_round_action: None,
                     display_name: None, 
                     mobile_unit_id: None, 
                     secret_key: None, 
                     role: None,
+                    eliminated: None,
                     location: None }),
                 destination: Some(depot),
                 round: round,
@@ -153,6 +155,7 @@ pub async fn post_task(_id: web::Json<Task>, _query: web::Query<TaskQuery>, req:
                 })?;
 
                 updated_player.used_action = Some(true);
+                updated_player.last_round_action = Some(round);
                 redis.set_key(&player_key, &updated_player).await.map_err(|e| {
                     error!("{:?}", e);
                     actix_web::error::ErrorInternalServerError("Unknown error")

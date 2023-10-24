@@ -202,13 +202,16 @@ impl GameState {
 
         if prior_result.eliminated.is_some() {
             for elimination in prior_result.eliminated.as_ref().unwrap() {
-                let player = &elimination.player;
+                let mut player = elimination.player.clone();
                 let player_key = format!("player:{}", player.id);
                 self.redis.remove_from_index(&player_index_key, &player_key).await?;
+
+                player.eliminated = Some(true);
+                self.redis.set_key(&player_key, &player).await?;
             }
         }
 
-        if game.status == GameStatus::TaskResult {
+        if game.status == GameStatus::Tasks {
             let action_keys: Vec<String> = self.redis.get_index_keys("game:actions").await?;
             let task_keys: Vec<String> = self.redis.get_index_keys("game:tasks").await?;
             for key in action_keys {
@@ -255,6 +258,8 @@ impl GameState {
                 secret_key: None,
                 nearby_buildings: None,
                 nearby_players: None,
+                last_round_action: None,
+                eliminated: None,
                 location: None,
                 role: None,
                 used_action: None,
@@ -294,7 +299,7 @@ impl GameState {
         let players: Vec<Player> = self.redis.get_index(&game_player_index).await?;
 
         // all tasks were completed
-        if result.round_type == GameStatus::TaskResult {
+        if result.round_type == GameStatus::Tasks {
             let tasks: Vec<Task> = self.redis.get_index("game:tasks").await.map_err(|e| JobError::RedisError)?;
 
             // we disable this for games of 2 players to allow for a limited setup demo 
@@ -333,7 +338,7 @@ impl GameState {
             }
         });
 
-        if number_of_bugs as f64 > (remaining_players.len() as f64 * 0.5) {
+        if number_of_bugs as f64 >= (remaining_players.len() as f64 * 0.5) && !game.demo_play {
             return Ok(WinResult::Thuggery);
         }
 
@@ -383,20 +388,37 @@ impl GameState {
 
                 if time.timer == 0 {
                     self.set_task_result(&game).await?;
-                    let next_game = Game {
-                        id: game.id,
-                        status: GameStatus::TaskResult,
-                        demo_play: game.demo_play,
-                        time: Some(Time {
-                            timer: 15,
-                            round: time.round
-                        }),
-                        win_result: None
-                    };
-                    let _ = self.redis.set_key("game", &next_game).await?;
+                    let is_end = self.check_end_game_condition(&game).await?;
+                    self.reset_round(&game).await?;
+                    if is_end != WinResult::Null {
+                        let next_game = Game {
+                            id: game.id.clone(),
+                            status: GameStatus::End,
+                            demo_play: game.demo_play,
+                            time: Some(Time {
+                                timer: 30,
+                                round: time.round 
+                            }),
+                            win_result: Some(is_end)
+                        };
+                        let _ = self.redis.set_key("game", &next_game).await?;
+                    } else {
+                        let next_game = Game {
+                            id: game.id,
+                            status: GameStatus::Vote,
+                            demo_play: game.demo_play,
+                            time: Some(Time {
+                                timer: 90,
+                                round: time.round
+                            }),
+                            win_result: None
+                        };
+                        let _ = self.redis.set_key("game", &next_game).await?;
+                    }
                 }
                 Ok(())
             }
+            // THIS TaskResult round is now obselete, TODO: delete
             GameStatus::TaskResult => {
                 // if the game is in task result phase, we move game into vote phase at the right time
                 // unless the game is over, then we move to the end phase
