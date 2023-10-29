@@ -44,7 +44,7 @@ pub async fn post_player(_id: web::Json<Player>, _path: web::Path<String>) -> Re
                 display_name: player_obj.display_name,
                 role: None,
                 proximity: None,
-                used_action: Some(false),
+                used_action: Some(tonk_shared_lib::ActionStatus::Unused),
                 last_round_action: None,
                 // secret_key: Some(secret.clone().to_string()),
                 secret_key: None,

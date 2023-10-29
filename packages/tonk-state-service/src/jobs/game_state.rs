@@ -81,7 +81,7 @@ impl GameState {
         let players: Vec<Player> = self.redis.get_index(&player_index_key).await.map_err(|e| JobError::RedisError )?;
 
         let inactive_players: Vec<Elimination> = players.iter().filter(|p| {
-            p.used_action.is_some() && !p.used_action.unwrap()
+            p.used_action.is_some() && *p.used_action.as_ref().unwrap_or(&tonk_shared_lib::ActionStatus::Unused) != tonk_shared_lib::ActionStatus::Voted
         }).map(|p| {
             Elimination {
                 player: p.clone(),
@@ -94,7 +94,7 @@ impl GameState {
         let mut max_candidate_id: String = "".to_string();
         if max_candidate.is_some() {
             max_candidate_id = max_candidate.as_ref().unwrap().id.clone();
-            println!("max_candidate: {:?}", max_candidate.as_ref().unwrap().role.as_ref().unwrap());
+            // println!("max_candidate: {:?}", max_candidate.as_ref().unwrap().role.as_ref().unwrap());
             if *max_candidate.as_ref().unwrap().role.as_ref().unwrap() == Role::Bugged {
                 new_corrupted.push(max_candidate.as_ref().unwrap().clone());
             }
@@ -117,12 +117,12 @@ impl GameState {
 
         let mut new_game = game.clone();
         if new_corrupted.len() > 0 {
-            println!("Setting corrupted_players on new game");
+            // println!("Setting corrupted_players on new game");
             if game.corrupted_players.as_ref().is_some() {
                 new_corrupted.append(game.clone().corrupted_players.as_mut().unwrap());
             } 
             new_game.corrupted_players = Some(new_corrupted);
-            println!("New game object {:?}", new_game);
+            // println!("New game object {:?}", new_game);
             let _ = self.redis.set_key("game", &new_game).await?;
         }
 
@@ -144,7 +144,10 @@ impl GameState {
 
         // we need to count all the players eliminated
         let actions: Vec<Action> = self.redis.get_index("game:actions").await.map_err(|e| JobError::RedisError)?;
-        let mut eliminated_players: Vec<Elimination> = actions.iter().map(|a| {
+        println!("actions: {:?}", actions);
+        let mut eliminated_players: Vec<Elimination> = actions.iter().filter(|a| {
+            a.interrupted_task
+        }).map(|a| {
             eliminations.insert(a.poison_target.id.clone());
             Elimination {
                 player: a.poison_target.clone(),
@@ -180,7 +183,7 @@ impl GameState {
         let players: Vec<Player> = self.redis.get_index(&player_index_key).await.map_err(|e| JobError::RedisError )?;
 
         let inactive_players: Vec<Elimination> = players.iter().filter(|p| {
-            p.used_action.is_some() && !p.used_action.unwrap()
+            p.used_action.is_some() && *p.used_action.as_ref().unwrap_or(&tonk_shared_lib::ActionStatus::Unused) != tonk_shared_lib::ActionStatus::TaskComplete
         }).map(|p| {
             Elimination {
                 player: p.clone(),
@@ -223,14 +226,14 @@ impl GameState {
         let player_index_key = format!("game:{}:player_index", game.id);
         let players: Vec<Player> = self.redis.get_index(&player_index_key).await?;
 
-        println!("Calling reset round!");
+        // println!("Calling reset round!");
 
         for player in players {
                 let player_key = format!("player:{}", player.id);
                 let mut reset_player = player.clone();
-                reset_player.used_action = Some(false); 
+                reset_player.used_action = Some(tonk_shared_lib::ActionStatus::Unused); 
 
-                println!("resetting used_action for player {}!", player_key);
+                // println!("resetting used_action for player {}!", player_key);
 
                 self.redis.set_key(&player_key, &reset_player).await?;
         }
@@ -285,9 +288,25 @@ impl GameState {
         Ok(player_keys.len() == vote_keys.len())
     }
 
+    async fn check_all_tasks_in(&self, game: &Game) -> Result<bool, JobError> {
+        let player_index_key = format!("game:{}:player_index", game.id);
+        let players: Vec<Player> = self.redis.get_index(&player_index_key).await?;
+
+        let tasks = self.redis.get_index_keys("game:tasks").await?;
+        let actions = self.redis.get_index_keys("game:actions").await?;
+
+        if (tasks.len() + actions.len()) == players.len() {
+            let all_done = players.iter().fold(true, |acc, e| {
+                acc && (*e.used_action.as_ref().unwrap_or(&tonk_shared_lib::ActionStatus::Unused) == tonk_shared_lib::ActionStatus::TaskComplete)
+            });
+            return Ok(all_done);
+        }
+        return Ok(false);
+    }
+
     async fn clear_player_state(&self) -> Result<(), JobError> {
         let players: Vec<Player> = self.redis.get_index("player:index").await?;
-        println!("clearing players {:?}", players);
+        // println!("clearing players {:?}", players);
         for player in players {
             let clean_player = Player {
                 id: player.id.clone(),
@@ -453,8 +472,18 @@ impl GameState {
                 // if the game is in the task phase, we move the game into task result phase at the right time
                 // we need to update the summary for that round
                 let time = game.time.as_ref().unwrap();
+                let all_tasks_in = self.check_all_tasks_in(&game).await?;
+                if all_tasks_in && time.timer > 0 {
+                    let mut ngame = game.clone();
+                    ngame.time = Some(Time {
+                        round: time.round,
+                        timer: 0,
+                    });
+                    let _ = self.redis.set_key("game", &ngame).await?;
+                    return Ok(());
+                }
 
-                if time.timer == 0 {
+                if time.timer <= 0 {
                     let new_game = self.set_task_result(&game).await?;
                     let is_end = self.check_end_game_condition(&new_game).await?;
                     self.reset_round(&new_game).await?;
@@ -533,8 +562,17 @@ impl GameState {
                 // if the game is in the vote phase, we move the game into the vote result phase at the right time
                 let time = game.time.as_ref().unwrap();
                 let all_votes_in = self.check_all_votes_in(&game).await?;
+                if all_votes_in && time.timer > 0 {
+                    let mut ngame = game.clone();
+                    ngame.time = Some(Time {
+                        round: time.round,
+                        timer: 0,
+                    });
+                    let _ = self.redis.set_key("game", &ngame).await?;
+                    return Ok(());
+                }
 
-                if time.timer == 0 || all_votes_in {
+                if time.timer <= 0 {
                     let new_game = self.set_vote_result(&game).await?;
                     let next_game = Game {
                         id: game.id,

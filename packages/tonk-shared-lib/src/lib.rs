@@ -22,13 +22,18 @@ pub enum Role {
 pub struct Location(pub String, pub String, pub String, pub String);
 
 #[derive(Serialize, Deserialize, Encode, Decode, Eq, Hash, PartialEq, Clone, Debug)]
+pub enum ActionStatus {
+    Unused, ReturnToTower, NextDepot, TaskComplete, Voted, 
+}
+
+#[derive(Serialize, Deserialize, Encode, Decode, Eq, Hash, PartialEq, Clone, Debug)]
 pub struct Player {
     pub id: String,
     pub mobile_unit_id: Option<String>,
     pub display_name: Option<String>,
     pub secret_key: Option<String>,
     pub role: Option<Role>,
-    pub used_action: Option<bool>,
+    pub used_action: Option<ActionStatus>,
     pub last_round_action: Option<u32>,
     pub eliminated: Option<bool>,
     pub proximity: Option<PlayerProximity>
@@ -75,6 +80,7 @@ pub struct Task {
 pub struct Action {
     pub poison_target: Player,
     pub interrupted_task: bool,
+    pub confirmed: bool,
     pub round: u32
 }
 

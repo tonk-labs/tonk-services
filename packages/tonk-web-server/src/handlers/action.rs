@@ -50,36 +50,41 @@ pub async fn post_action(_id: web::Json<Action>, _query: web::Query<ActionQuery>
     })?;
     let nearby_players = proximity.nearby_players.unwrap();
 
+    let action_key = format!("action:{}:{}:{}", game.id, round, player.id);
+    let exists: Result<Action, _> = redis.get_key(&action_key).await;
 
     let target_is_near = nearby_players.iter().find(|e| {
         e.id == action.poison_target.id
     });
-    if target_is_near.is_none() {
+
+    // we only care about these checks the first time around
+    if target_is_near.is_none() && !action.confirmed {
         return Err(actix_web::error::ErrorForbidden("The target is not within range"));
     }
-
-    let target_proximity_key = format!("player:{}:proximity", target_is_near.as_ref().unwrap().id);
-    let target_proximity: PlayerProximity = redis.get_key(&target_proximity_key).await.map_err(|e| {
-        error!("{:?}", e);
-        actix_web::error::ErrorInternalServerError("Unknown error")
-    })?;
-    if *target_is_near.as_ref().unwrap().role.as_ref().unwrap() == Role::Bugged {
-        return Err(actix_web::error::ErrorForbidden("Bugs cannot bug another bug"));
+    if !action.confirmed {
+        let target_proximity_key = format!("player:{}:proximity", target_is_near.as_ref().unwrap().id);
+        let target_proximity: PlayerProximity = redis.get_key(&target_proximity_key).await.map_err(|e| {
+            error!("{:?}", e);
+            actix_web::error::ErrorInternalServerError("Unknown error")
+        })?;
+        if *target_is_near.as_ref().unwrap().role.as_ref().unwrap() == Role::Bugged {
+            return Err(actix_web::error::ErrorForbidden("Bugs cannot bug another bug"));
+        }
+        if *target_proximity.immune.as_ref().unwrap() {
+            return Err(actix_web::error::ErrorForbidden("You cannot bug someone within 3 tiles of the tower"));
+        }
     }
-    if *target_proximity.immune.as_ref().unwrap() {
-        return Err(actix_web::error::ErrorForbidden("You cannot bug someone within 3 tiles of the tower"));
-    }
 
-    let action_key = format!("action:{}:{}:{}", game.id, round, player.id);
-    let exists: Result<Action, _> = redis.get_key(&action_key).await;
-    if exists.is_err() {
+    if exists.is_err() && !action.confirmed {
         let mut updated_action = action.clone();
+        updated_action.confirmed = false;
         let interrupted_task_key = format!("task:{}:{}:{}", game.id, round, action.poison_target.id);
         let task_result: Task = redis.get_key(&interrupted_task_key).await.map_err(|e| {
             error!("{:?}", e);
             actix_web::error::ErrorInternalServerError("Unknown error")
         })?;
         if !task_result.complete {
+            println!("task result to be interrupted is: {:?}", task_result);
             updated_action.interrupted_task = true;
         }
 
@@ -88,7 +93,7 @@ pub async fn post_action(_id: web::Json<Action>, _query: web::Query<ActionQuery>
             actix_web::error::ErrorInternalServerError("Unknown error")
         })?;
 
-        updated_player.used_action = Some(true);
+        updated_player.used_action = Some(tonk_shared_lib::ActionStatus::ReturnToTower);
         redis.set_key(&player_key, &updated_player).await.map_err(|e| {
             error!("{:?}", e);
             actix_web::error::ErrorInternalServerError("Unknown error")
@@ -98,6 +103,29 @@ pub async fn post_action(_id: web::Json<Action>, _query: web::Query<ActionQuery>
             actix_web::error::ErrorInternalServerError("Unknown error")
         })?;
     } else {
+        if let Ok(stored_action) = exists {
+            // this is posted again when the player is completing their action at the tower
+            if !stored_action.confirmed {
+                let mut updated_action = stored_action.clone();
+                if let Some(buildings) = proximity.nearby_buildings {
+                    for building in buildings {
+                        if building.is_tower {
+                            updated_action.confirmed = true;
+                            let _ = redis.set_key(&action_key, &updated_action).await.map_err(|e| {
+                                error!("{:?}", e);
+                                actix_web::error::ErrorInternalServerError("Unknown error")
+                            })?;
+
+                            updated_player.used_action = Some(tonk_shared_lib::ActionStatus::TaskComplete);
+                            redis.set_key(&player_key, &updated_player).await.map_err(|e| {
+                                error!("{:?}", e);
+                                actix_web::error::ErrorInternalServerError("Unknown error")
+                            })?;
+                        }
+                    }
+                }
+            }
+        }
         return Err(actix_web::error::ErrorForbidden("You have already taken an action this round"));
     }
 

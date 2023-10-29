@@ -63,7 +63,7 @@ pub async fn post_vote(_id: web::Json<Vote>, _query: web::Query<VoteQuery>, req:
                 error!("{:?}", e);
                 actix_web::error::ErrorInternalServerError("Unknown error")
             })?;
-            player.used_action = Some(true);
+            player.used_action = Some(tonk_shared_lib::ActionStatus::Voted);
             player.last_round_action = Some(round);
             redis.set_key(&player_key, &player).await.map_err(|e| {
                 error!("{:?}", e);

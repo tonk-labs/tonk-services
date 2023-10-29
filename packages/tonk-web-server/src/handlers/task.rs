@@ -157,6 +157,11 @@ pub async fn post_task(_id: web::Json<Task>, _query: web::Query<TaskQuery>, req:
             if !task.dropped_off && building.id == _id.0.destination.as_ref().unwrap().id {
                 let mut updated_task = task.clone();
                 updated_task.dropped_off = true;
+                updated_player.used_action = Some(tonk_shared_lib::ActionStatus::ReturnToTower);
+                redis.set_key(&player_key, &updated_player).await.map_err(|e| {
+                    error!("{:?}", e);
+                    actix_web::error::ErrorInternalServerError("Unknown error")
+                })?;
                 redis.set_key(&task_key, &updated_task).await.map_err(|e| {
                     actix_web::error::ErrorInternalServerError("Unknown error")
                 })?;
@@ -169,7 +174,7 @@ pub async fn post_task(_id: web::Json<Task>, _query: web::Query<TaskQuery>, req:
                     actix_web::error::ErrorInternalServerError("Unknown error")
                 })?;
 
-                updated_player.used_action = Some(true);
+                updated_player.used_action = Some(tonk_shared_lib::ActionStatus::TaskComplete);
                 updated_player.last_round_action = Some(round);
                 redis.set_key(&player_key, &updated_player).await.map_err(|e| {
                     error!("{:?}", e);

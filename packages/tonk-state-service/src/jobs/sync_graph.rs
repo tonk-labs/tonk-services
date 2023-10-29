@@ -323,9 +323,9 @@ impl SyncGraph {
         // let mut reg_players: Vec<tonk_shared_lib::Player> = self.redis.get_index("player:index").await?;
         // print!("{:?}", reg_players);
         let ids: Vec<String> = game_players.iter_mut().map(|p| p.mobile_unit_id.clone().unwrap_or("".to_string()) ).collect();
-        println!("{:?}", ids);
+        // println!("{:?}", ids);
         if ids.len() == 0 {
-            println!("{:?}", "skipping location update, no players in the game");
+            // println!("{:?}", "skipping location update, no players in the game");
             return Ok(());
         }
 
