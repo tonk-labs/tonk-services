@@ -64,8 +64,10 @@ pub async fn get_task(_query: web::Query<TaskQuery>, req: HttpRequest) -> Result
         let empty_task = Task {
             assignee: Some(player.clone()),
             destination: Some(Building { id: "".to_string(), readable_id: "".to_string(), location: None, task_message: "You have been corrupted and seek to attack others.".to_string(), is_tower: false }),
+            second_destination: Some(Building { id: "".to_string(), readable_id: "".to_string(), location: None, task_message: "You have been corrupted and seek to attack others.".to_string(), is_tower: false }),
             round: game.time.as_ref().unwrap().round.clone(),
             dropped_off: false,
+            dropped_off_second: false,
             complete: false
         };
         return Ok(HttpResponse::Ok().json(empty_task));
@@ -79,6 +81,10 @@ pub async fn get_task(_query: web::Query<TaskQuery>, req: HttpRequest) -> Result
         }
         Err(RedisHelperError::MissingKey) => {
             let depot = get_random_depot(redis.borrow_mut()).await?;
+            let mut depot_2 = get_random_depot(redis.borrow_mut()).await?;
+            while depot_2.id == depot.id {
+                depot_2 = get_random_depot(redis.borrow_mut()).await?;
+            }
             let random_task = Task {
                 assignee: Some(Player { 
                     id: player_id.clone(), 
@@ -92,8 +98,10 @@ pub async fn get_task(_query: web::Query<TaskQuery>, req: HttpRequest) -> Result
                     proximity: None,
                 }),
                 destination: Some(depot),
+                second_destination: Some(depot_2),
                 round: round,
                 dropped_off: false,
+                dropped_off_second: false,
                 complete: false
             };
             let _ = redis.set_key(&task_key, &random_task).await.map_err(|e| {
@@ -157,6 +165,19 @@ pub async fn post_task(_id: web::Json<Task>, _query: web::Query<TaskQuery>, req:
             if !task.dropped_off && building.id == _id.0.destination.as_ref().unwrap().id {
                 let mut updated_task = task.clone();
                 updated_task.dropped_off = true;
+                updated_player.used_action = Some(tonk_shared_lib::ActionStatus::NextDepot);
+                redis.set_key(&player_key, &updated_player).await.map_err(|e| {
+                    error!("{:?}", e);
+                    actix_web::error::ErrorInternalServerError("Unknown error")
+                })?;
+                redis.set_key(&task_key, &updated_task).await.map_err(|e| {
+                    actix_web::error::ErrorInternalServerError("Unknown error")
+                })?;
+                return Ok(HttpResponse::Ok().json(updated_task));
+            }
+            if !task.dropped_off_second && building.id == _id.0.second_destination.as_ref().unwrap().id {
+                let mut updated_task = task.clone();
+                updated_task.dropped_off_second = true;
                 updated_player.used_action = Some(tonk_shared_lib::ActionStatus::ReturnToTower);
                 redis.set_key(&player_key, &updated_player).await.map_err(|e| {
                     error!("{:?}", e);
@@ -167,7 +188,7 @@ pub async fn post_task(_id: web::Json<Task>, _query: web::Query<TaskQuery>, req:
                 })?;
                 return Ok(HttpResponse::Ok().json(updated_task));
             }
-            if !task.complete && building.is_tower {
+            if !task.complete && building.is_tower && (task.dropped_off_second && task.dropped_off) {
                 let mut completed_task = task.clone();
                 completed_task.complete = true;
                 redis.set_key(&task_key, &completed_task).await.map_err(|e| {

@@ -172,8 +172,10 @@ impl GameState {
             Task {
                 assignee: None,
                 destination: None,
+                second_destination: None,
                 round: t.round,
                 dropped_off: t.dropped_off,
+                dropped_off_second: t.dropped_off_second,
                 complete: t.complete 
             }
         }).collect();

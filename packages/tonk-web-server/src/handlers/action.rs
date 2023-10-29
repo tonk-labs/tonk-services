@@ -84,7 +84,7 @@ pub async fn post_action(_id: web::Json<Action>, _query: web::Query<ActionQuery>
             actix_web::error::ErrorInternalServerError("Unknown error")
         })?;
         if !task_result.complete {
-            println!("task result to be interrupted is: {:?}", task_result);
+            // println!("task result to be interrupted is: {:?}", task_result);
             updated_action.interrupted_task = true;
         }
 

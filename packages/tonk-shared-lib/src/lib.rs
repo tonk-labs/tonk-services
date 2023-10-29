@@ -71,8 +71,10 @@ pub struct Game {
 pub struct Task {
     pub assignee: Option<Player>,
     pub destination: Option<Building>,
+    pub second_destination: Option<Building>,
     pub round: u32,
     pub dropped_off: bool,
+    pub dropped_off_second: bool,
     pub complete: bool
 }
 
