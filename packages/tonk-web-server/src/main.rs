@@ -33,6 +33,7 @@ async fn main() -> std::io::Result<()> {
                     .allow_any_method()
                     .allow_any_header()
                     .send_wildcard()
+                    .max_age(3600)
             )
             .configure(app_config::config)
     })

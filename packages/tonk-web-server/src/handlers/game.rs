@@ -128,6 +128,7 @@ pub async fn get_game() -> Result<HttpResponse, Error> {
             // the game doesn't exist
             let empty_game = Game {
                 id: "".to_string(),
+                corrupted_players: None,
                 status: GameStatus::Null,
                 demo_play: false,
                 time: None,
@@ -150,16 +151,13 @@ fn sanitize_players(players: &Vec<Player>, show_role: bool) -> Vec<Player> {
         }
         Player {
             id: p.id.clone(),
-            nearby_buildings: None, 
-            nearby_players: None,
             mobile_unit_id: p.mobile_unit_id.clone(),
             display_name: p.display_name.clone(),
             role,
+            proximity: None,
             used_action: None,
             last_round_action: None,
             secret_key: None,
-            location: None,
-            immune: p.immune,
             eliminated: None
         }
     }).collect()

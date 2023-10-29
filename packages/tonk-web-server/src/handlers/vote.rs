@@ -58,6 +58,7 @@ pub async fn post_vote(_id: web::Json<Vote>, _query: web::Query<VoteQuery>, req:
     match saved_vote {
         Err(RedisHelperError::MissingKey) => {
             vote.candidate.display_name = candidate.display_name.clone();
+            vote.candidate.role = candidate.role.clone();
             let _ = redis.set_key(&vote_key, &vote).await.map_err(|e| {
                 error!("{:?}", e);
                 actix_web::error::ErrorInternalServerError("Unknown error")

@@ -1,5 +1,5 @@
 use actix_web::{web, Error, HttpResponse};
-use tonk_shared_lib::{Player, Game, Action, Task, Vote, GameStatus, Role};
+use tonk_shared_lib::{Player, Game, Action, Task, Vote, GameStatus, Role, PlayerProximity};
 use serde::{Deserialize, Serialize};
 use tonk_shared_lib::redis_helper::*;
 use log::*;
@@ -40,17 +40,14 @@ pub async fn post_player(_id: web::Json<Player>, _path: web::Path<String>) -> Re
             // here we need to make interface somehow with the blockchain to verify
             let registered_player = Player {
                 id: _path.to_string(),
-                nearby_buildings: None,
-                nearby_players: None,
                 mobile_unit_id: player_obj.mobile_unit_id,
                 display_name: player_obj.display_name,
-                immune: None,
                 role: None,
+                proximity: None,
                 used_action: Some(false),
                 last_round_action: None,
                 // secret_key: Some(secret.clone().to_string()),
                 secret_key: None,
-                location: None,
                 eliminated: None
             };
             let _ = redis.set_key(&player_key, &registered_player).await.map_err(|e| {
@@ -72,17 +69,14 @@ pub async fn post_player(_id: web::Json<Player>, _path: web::Path<String>) -> Re
         let cp = player.as_ref().unwrap().clone();
         let registered_player = Player {
             id: cp.id,
-            nearby_buildings: cp.nearby_buildings,
-            nearby_players: cp.nearby_players,
-            mobile_unit_id: cp.mobile_unit_id,
+            mobile_unit_id: player_obj.mobile_unit_id,
             last_round_action: cp.last_round_action,
             display_name: player_obj.display_name,
-            immune: cp.immune,
             role: cp.role,
+            proximity: None,
             used_action: cp.used_action,
             // secret_key: Some(secret.clone().to_string()),
             secret_key: cp.secret_key,
-            location: cp.location,
             eliminated: None
         };
         let _ = redis.set_key(&player_key, &registered_player).await.map_err(|e| {
@@ -103,6 +97,7 @@ pub async fn get_player(_id: web::Path<String>) -> Result<HttpResponse, Error> {
     let player_key = format!("player:{}", _id.to_string());
     let player: Result<Player, _> = redis.get_key(&player_key).await;
 
+
     // let game: Game = redis.get_key("game").await.map_err(|e| {
     //     error!("{:?}", e);
     //     actix_web::error::ErrorInternalServerError(e)
@@ -112,20 +107,22 @@ pub async fn get_player(_id: web::Path<String>) -> Result<HttpResponse, Error> {
     if let Err(RedisHelperError::MissingKey) = player {
         Ok(HttpResponse::Ok().json(Player {
             id: "".to_string(),
-            nearby_buildings: None,
-            nearby_players: None,
             role: None,
             used_action: None,
             last_round_action: None,
             display_name: None,
+            proximity: None,
             mobile_unit_id: None,
-            immune: None,
             secret_key: None,
-            location: None,
             eliminated: None
         }))
     } else if let Ok(registered_player) = player {
         // let wrapper_player = registered_player.clone();
+        let proximity_key = format!("player:{}:proximity", _id.to_string());
+        let proximity: Option<PlayerProximity> = match redis.get_key(&proximity_key).await {
+            Ok(proximity) => Some(proximity),
+            Err(_) => None
+        };
 
         // let index_key = format!("game:{}:player_index", game.id);
         // let game_players: Vec<Player> = redis.get_index(&index_key).await.map_err(|e| {
@@ -160,7 +157,9 @@ pub async fn get_player(_id: web::Path<String>) -> Result<HttpResponse, Error> {
         //     }
         // }
 
-        Ok(HttpResponse::Ok().json(registered_player))
+        let mut return_player = registered_player.clone();
+        return_player.proximity = proximity.clone();
+        Ok(HttpResponse::Ok().json(return_player))
     } else {
         error!("Couldn't get the player key from redis");
         Err(actix_web::error::ErrorInternalServerError("unknown error"))

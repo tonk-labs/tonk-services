@@ -27,6 +27,7 @@ impl Clock {
                 id: game.id,
                 status: game.status,
                 demo_play: game.demo_play,
+                corrupted_players: game.corrupted_players,
                 time: Some(Time {
                     timer: time.timer - 1,
                     round: time.round

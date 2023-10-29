@@ -26,15 +26,21 @@ pub struct Player {
     pub id: String,
     pub mobile_unit_id: Option<String>,
     pub display_name: Option<String>,
-    pub nearby_players: Option<Vec<Player>>,
-    pub nearby_buildings: Option<Vec<Building>>,
     pub secret_key: Option<String>,
-    pub location: Option<Location>,
     pub role: Option<Role>,
     pub used_action: Option<bool>,
     pub last_round_action: Option<u32>,
+    pub eliminated: Option<bool>,
+    pub proximity: Option<PlayerProximity>
+}
+
+
+#[derive(Serialize, Deserialize, Encode, Decode, Eq, Hash, PartialEq, Clone, Debug)]
+pub struct PlayerProximity {
+    pub nearby_players: Option<Vec<Player>>,
+    pub nearby_buildings: Option<Vec<Building>>,
     pub immune: Option<bool>,
-    pub eliminated: Option<bool>
+    pub location: Option<Location>,
 }
 
 #[derive(Serialize, Deserialize, Encode, Decode, Hash, Eq, PartialEq, Clone, Debug)]
@@ -52,6 +58,7 @@ pub struct Game {
     pub status: GameStatus,
     pub time: Option<Time>,
     pub win_result: Option<WinResult>,
+    pub corrupted_players: Option<Vec<Player>>,
     pub demo_play: bool,
 }
 

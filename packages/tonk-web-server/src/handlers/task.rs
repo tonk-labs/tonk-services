@@ -1,7 +1,7 @@
 use std::borrow::BorrowMut;
 
 use actix_web::{web, Error, HttpResponse, HttpRequest};
-use tonk_shared_lib::{Task, Building, Game, Player, GameStatus, Role, Action};
+use tonk_shared_lib::{Task, Building, Game, Player, GameStatus, Role, PlayerProximity};
 use serde::{Deserialize, Serialize};
 use tonk_shared_lib::redis_helper::*;
 use rand::Rng;
@@ -63,7 +63,7 @@ pub async fn get_task(_query: web::Query<TaskQuery>, req: HttpRequest) -> Result
     if *player.role.as_ref().unwrap() == Role::Bugged {
         let empty_task = Task {
             assignee: Some(player.clone()),
-            destination: Some(Building { id: "".to_string(), readable_id: "".to_string(), location: None, task_message: "You are a bug and hunger to bug out others.".to_string(), is_tower: false }),
+            destination: Some(Building { id: "".to_string(), readable_id: "".to_string(), location: None, task_message: "You have been corrupted and seek to attack others.".to_string(), is_tower: false }),
             round: game.time.as_ref().unwrap().round.clone(),
             dropped_off: false,
             complete: false
@@ -82,17 +82,15 @@ pub async fn get_task(_query: web::Query<TaskQuery>, req: HttpRequest) -> Result
             let random_task = Task {
                 assignee: Some(Player { 
                     id: player_id.clone(), 
-                    nearby_buildings: None, 
-                    nearby_players: None, 
                     used_action: None,
-                    immune: None,
                     last_round_action: None,
                     display_name: None, 
                     mobile_unit_id: None, 
                     secret_key: None, 
                     role: None,
                     eliminated: None,
-                    location: None }),
+                    proximity: None,
+                }),
                 destination: Some(depot),
                 round: round,
                 dropped_off: false,
@@ -149,7 +147,12 @@ pub async fn post_task(_id: web::Json<Task>, _query: web::Query<TaskQuery>, req:
         return Err(actix_web::error::ErrorForbidden("Task is already complete"));
     }
 
-    if let Some(buildings) = player.nearby_buildings {
+    let player_proximity_key = format!("player:{}:proximity", player_id);
+    let proximity: PlayerProximity = redis.get_key(&player_proximity_key).await.map_err(|e| {
+        error!("{:?}", e);
+        actix_web::error::ErrorInternalServerError("Unknown error")
+    })?;
+    if let Some(buildings) = proximity.nearby_buildings {
         for building in buildings {
             if !task.dropped_off && building.id == _id.0.destination.as_ref().unwrap().id {
                 let mut updated_task = task.clone();

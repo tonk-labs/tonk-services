@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::ops::{RangeBounds, Index};
 use log::*;
 use redis::{Commands, ToRedisArgs, RedisResult};
@@ -6,7 +7,7 @@ use gql_client;
 use serde::{Deserialize,Serialize};
 use std::env;
 
-use tonk_shared_lib;
+use tonk_shared_lib::{self, PlayerProximity};
 use tonk_shared_lib::redis_helper::*;
 use super::error::JobError;
 
@@ -203,9 +204,10 @@ impl SyncGraph {
         }
     }
 
-    fn update_locations_player(&self, data: &Data, players: &mut Vec<tonk_shared_lib::Player>) {
+    fn update_locations_player(&self, data: &Data, players: &Vec<tonk_shared_lib::Player>) -> HashMap<String, tonk_shared_lib::Location> {
+        let mut player_locations: HashMap<String, tonk_shared_lib::Location> = HashMap::new();
         for entry in &data.game.state.nodes {
-            if let Some(player) = players.iter_mut().find(|p| {
+            if let Some(player) = players.iter().find(|p| {
                 if let Some(id) = &p.mobile_unit_id {
                     *id == entry.id
                 } else {
@@ -218,20 +220,26 @@ impl SyncGraph {
                     entry.location.tile.coords[2].to_string(),
                     entry.location.tile.coords[3].to_string(),
                 );
-
-                player.location = Some(location_coords);
+                player_locations.insert(player.id.clone(), location_coords.clone());
             } 
         }
+        player_locations
     }
 
-    async fn calculate_distance(&self, players: &mut Vec<tonk_shared_lib::Player>) -> Result<(), JobError> {
+    async fn calculate_distance(&self, 
+        players: &Vec<tonk_shared_lib::Player>, 
+        player_locations: &HashMap<String, tonk_shared_lib::Location>
+    ) -> Result<HashMap<String, tonk_shared_lib::PlayerProximity>, JobError> {
+
         let building_index = format!("building:index");
         let buildings: Vec<tonk_shared_lib::Building> = self.redis.get_index(&building_index).await?;
+        let mut player_proximities: HashMap<String, tonk_shared_lib::PlayerProximity> = HashMap::new();
         for i in 0..players.len() {
-            let mut nearby_players: Vec<tonk_shared_lib::Player> = Vec::new();
             let mut nearby_buildings: Vec<tonk_shared_lib::Building> = Vec::new();
-            let player_cube_coord = Cube::new(players[i].location.as_ref().unwrap());
-            players[i].immune = Some(false);
+            let mut immune = Some(false);
+            let location = player_locations.get(&players[i].id).unwrap();
+            let player_cube_coord = Cube::new(location);
+            // players[i].immune = Some(false);
             for j in 0..buildings.len() {
                 let buildings_cube_coord = Cube::new(buildings[j].location.as_ref().unwrap());
                 let distance = player_cube_coord.distance(&buildings_cube_coord);
@@ -245,53 +253,77 @@ impl SyncGraph {
                     });
                 }
                 if distance < 4 && buildings[j].is_tower {
-                    players[i].immune = Some(true);
+                    immune = Some(true);
                 } 
             }
+            player_proximities.insert(players[i].id.clone(), tonk_shared_lib::PlayerProximity {
+                nearby_buildings: Some(nearby_buildings.clone()),
+                nearby_players: None,
+                immune: immune.clone(),
+                location: None,
+            });
+        }
 
+        for i in 0..players.len() {
+            let location = player_locations.get(&players[i].id).unwrap();
+            let player_cube_coord = Cube::new(location);
+            let mut nearby_players: Vec<tonk_shared_lib::Player> = Vec::new();
             let mut show_role = false;
             if players[i].role.is_some() && *players[i].role.as_ref().unwrap() == tonk_shared_lib::Role::Bugged {
                 show_role = true;
             }
             for j in 0..players.len() {
-                let other_cube_coord = Cube::new(players[j].location.as_ref().unwrap());
+                let other_location = player_locations.get(&players[j].id).unwrap();
+                let other_cube_coord = Cube::new(other_location);
                 let distance = player_cube_coord.distance(&other_cube_coord);
-                let is_another_bug = players[j].role.as_ref().unwrap_or(&tonk_shared_lib::Role::Bugged).clone() == tonk_shared_lib::Role::Bugged;
-                if distance < 3 && j != i && !is_another_bug {
+                // let is_another_bug = players[j].role.as_ref().unwrap_or(&tonk_shared_lib::Role::Bugged).clone() == tonk_shared_lib::Role::Bugged;
+                if distance < 3 && j != i {
                     let mut role = None;
                     if show_role {
                         role = players[j].role.clone()
                     } 
+                    let j_proximal = player_proximities.get(&players[j].id).unwrap();
                     nearby_players.push(tonk_shared_lib::Player {
                         id: players[j].id.clone(),
                         mobile_unit_id: players[j].mobile_unit_id.clone(),
                         display_name: players[j].display_name.clone(),
-                        nearby_buildings: None,
                         used_action: None,
-                        immune: players[j].immune,
                         last_round_action: None,
-                        nearby_players: None,
+                        proximity: Some(PlayerProximity {
+                            nearby_buildings: None,
+                            nearby_players: None,
+                            immune: j_proximal.immune.clone(),
+                            location: None,
+                        }),
                         secret_key: None,
                         role,
-                        location: players[j].location.clone(),
                         eliminated: None
                     });
                 }
             }
-            players[i].nearby_players = Some(nearby_players);
-            players[i].nearby_buildings = Some(nearby_buildings);
+            let prev_values = player_proximities.get(&players[i].id.clone()).unwrap();
+            let location = player_locations.get(&players[i].id).unwrap();
+            player_proximities.insert(players[i].id.clone(), tonk_shared_lib::PlayerProximity {
+                nearby_buildings: prev_values.nearby_buildings.clone(),
+                nearby_players: Some(nearby_players),
+                immune: prev_values.immune.clone(),
+                location: Some(location.clone())
+            });
         }
-        Ok(())
+        Ok(player_proximities)
     }
 
     pub async fn run(&self) -> Result<(), JobError> {
         let game: tonk_shared_lib::Game = self.redis.get_key("game").await?;
+        if game.status == tonk_shared_lib::GameStatus::End {
+            return Ok(());
+        }
         let game_index = format!("game:{}:player_index", game.id);
         let mut game_players: Vec<tonk_shared_lib::Player> = self.redis.get_index(&game_index).await?;
         // let mut reg_players: Vec<tonk_shared_lib::Player> = self.redis.get_index("player:index").await?;
         // print!("{:?}", reg_players);
         let ids: Vec<String> = game_players.iter_mut().map(|p| p.mobile_unit_id.clone().unwrap_or("".to_string()) ).collect();
-        // println!("{:?}", ids);
+        println!("{:?}", ids);
         if ids.len() == 0 {
             println!("{:?}", "skipping location update, no players in the game");
             return Ok(());
@@ -314,16 +346,19 @@ impl SyncGraph {
         let round = game.time.as_ref().unwrap().round;
 
         if let Some(data) = result.unwrap() {
-            self.update_locations_player(&data, &mut game_players);
-            self.calculate_distance(&mut game_players).await?;
-            for mut player in game_players {
-                let player_key = format!("player:{}", player.id);
+            let player_locations = self.update_locations_player(&data, &game_players);
+            let player_proximities = self.calculate_distance(&game_players, &player_locations).await?;
+            for player in game_players {
+                // let player_key = format!("player:{}", player.id);
                 // println!("immunity for {:?}:{:?}", player.display_name, player.immune);
                 // SUPER hacky, but we're just going to do this for now to get the job done.
-                if player.last_round_action.is_some() && *player.last_round_action.as_ref().unwrap() < round {
-                    player.used_action = Some(false);
-                }
-                let _: () = self.redis.set_key(&player_key, &player).await?;
+                // if player.last_round_action.is_some() && *player.last_round_action.as_ref().unwrap() < round {
+                //     player.used_action = Some(false);
+                // }
+                // let _: () = self.redis.set_key(&player_key, &player).await?;
+                let proximity = player_proximities.get(&player.id).unwrap();
+                let proximity_key = format!("player:{}:proximity", player.id);
+                let _: () = self.redis.set_key(&proximity_key, &proximity).await?;
             }
             Ok(())
         } else {
