@@ -153,7 +153,6 @@ fn hex_twos_complement_to_i32(hex: &str) -> i32 {
     } else {
         i32::MAX
     }
-
 }
 
 
@@ -195,9 +194,26 @@ const CUBE_DIRECTION_VECTORS: [Cube; 6] = [
     Cube { q: 0, r: 1, s: -1 },
 ];
 
-pub trait MockClient {
-    fn get(&self, vars: PlayerVars) -> Option<Data>;
+async fn get_test_data(vars: &PlayerVars, redis: &RedisHelper) -> Result<Option<Data>, RedisHelperError> {
+    let redis_keys: Vec<String> = vars.ids.iter().map(|e|  {
+        format!("locations:{}", e)
+    }).collect();
+    let mut nodes: Vec<Node> = Vec::new();
+    for rkey in redis_keys {
+        let result = redis.get_key_test(&rkey).await?;
+        let node: Node = serde_json::from_str(&result).map_err(|_| RedisHelperError::Unknown)?;
+        nodes.push(node);
+    }
+    Ok(Some(Data {
+        game: Game {
+            id: vars.gameID.clone(),
+            state: State {
+                nodes
+            }
+        }
+    }))
 }
+
 
 impl SyncGraph {
     pub fn new(redis: RedisHelper) -> Self {
@@ -226,6 +242,7 @@ impl SyncGraph {
                 player_locations.insert(player.id.clone(), location_coords.clone());
             } 
         }
+        // println!("{:?}", player_locations);
         player_locations
     }
 
@@ -240,7 +257,12 @@ impl SyncGraph {
         for i in 0..players.len() {
             let mut nearby_buildings: Vec<tonk_shared_lib::Building> = Vec::new();
             let mut immune = Some(false);
-            let location = player_locations.get(&players[i].id).unwrap();
+            let location_unwrapped = player_locations.get(&players[i].id);
+            if location_unwrapped.is_none() {
+                println!("no player id in player_locations for: {}", &players[i].id.clone());
+                return Err(JobError::Unknown)
+            }
+            let location = location_unwrapped.unwrap();
             let player_cube_coord = Cube::new(location);
             // players[i].immune = Some(false);
             for j in 0..buildings.len() {
@@ -369,7 +391,7 @@ impl SyncGraph {
         }
     } 
 
-    pub async fn mock_run(&self, client: Box<dyn MockClient>) -> Result<(), JobError> {
+    pub async fn mock_run(&self) -> Result<(), JobError> {
         let game: tonk_shared_lib::Game = self.redis.get_key("game").await?;
         if game.status == tonk_shared_lib::GameStatus::End {
             return Ok(());
@@ -390,11 +412,11 @@ impl SyncGraph {
             gameID: "DOWNSTREAM".to_string(),
             ids,
         };
-        let result: Option<Data> = client.get(vars);
+        let result: Result<Option<Data>, RedisHelperError> = get_test_data(&vars, &self.redis).await;
 
         let round = game.time.as_ref().unwrap().round;
 
-        if let Some(data) = result {
+        if let Some(data) = result.unwrap() {
             let player_locations = self.update_locations_player(&data, &game_players);
             let player_proximities = self.calculate_distance(&game_players, &player_locations).await?;
             for player in game_players {

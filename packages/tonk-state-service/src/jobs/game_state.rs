@@ -144,7 +144,6 @@ impl GameState {
 
         // we need to count all the players eliminated
         let actions: Vec<Action> = self.redis.get_index("game:actions").await.map_err(|e| JobError::RedisError)?;
-        println!("actions: {:?}", actions);
         let mut eliminated_players: Vec<Elimination> = actions.iter().filter(|a| {
             a.interrupted_task
         }).map(|a| {

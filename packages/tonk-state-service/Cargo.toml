@@ -18,3 +18,4 @@ tokio = { version = "1.32.0", features = ["rt-multi-thread", "macros"] }
 tokio-cron-scheduler = "0.9.4"
 tonk-shared-lib = { path = "../tonk-shared-lib" }
 uuid = { version = "1.4.1", features = ["v4"] }
+serde_json = "1.0"

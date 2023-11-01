@@ -79,6 +79,15 @@ impl RedisHelper {
         let deserialized = deserialize_struct(&result)?;
         Ok(deserialized)
     }
+    pub async fn get_key_test(&self, key: &str) -> Result<String, RedisHelperError> {
+        let mut con_guard = self.con.lock().await;
+        let exists: bool = con_guard.exists(key).await?;
+        if !exists {
+            return Err(RedisHelperError::MissingKey);
+        }
+        let result: String = con_guard.get(key).await?;
+        Ok(result)
+    }
 
     pub async fn set_key<T: Encode>(&self, key: &str, obj: &T) -> Result<(), RedisHelperError> {
         let mut con_guard = self.con.lock().await;

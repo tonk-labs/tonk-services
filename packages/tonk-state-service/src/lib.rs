@@ -80,3 +80,75 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         tokio::time::sleep(Duration::from_secs(60)).await;
     }
 }
+
+pub async fn run_test() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::init();
+    let sched = JobScheduler::new().await?;
+
+    // let sync_graph = SyncGraph::new().await?;
+    // let shared_client = Arc::new(sync_graph).clone();
+
+    // initialize_game_state()?;
+    dotenv::from_filename(".env.local").ok();
+
+    sched
+        .add(Job::new_async("1/2 * * * * *", move |_, _| {
+            Box::pin(async move {
+                if let Ok(redis) = RedisHelper::init().await {
+                    let sync_graph = SyncGraph::new(redis);
+                    let r = sync_graph.mock_run().await;
+                    if r.is_err() {
+                        error!("{}", r.err().unwrap());
+                    }
+                }
+            })
+        })?)
+        .await?;
+
+    sched
+        .add(Job::new_async("*/1 * * * * *", move |_, _| {
+            Box::pin(async move {
+                if let Ok(redis) = RedisHelper::init().await {
+                    let clock = Clock::new(redis);
+                    let r = clock.mock_run().await;
+                    if r.is_err() {
+                        error!("{:?}", r.err().unwrap());
+                    }
+                }
+            })
+        })?)
+        .await?;
+
+    sched
+        .add(Job::new_async("1/3 * * * * *", move |_, _| {
+            Box::pin(async move {
+                if let Ok(redis) = RedisHelper::init().await {
+                    let game_state = GameState::new(redis);
+                    let r = game_state.run().await;
+                    if r.is_err() {
+                        error!("{:?}", r.err().unwrap());
+                    }
+                }
+            })
+        })?)
+        .await?;
+
+
+    // Start the scheduler
+    sched.start().await?;
+
+    let mut stop = false;
+    if let Ok(redis) = RedisHelper::init().await {
+        // Wait while the jobs run
+        while !stop {
+            tokio::time::sleep(Duration::from_secs(20)).await;
+            let should_stop = redis.get_key_test("stop").await;
+            stop = should_stop.is_ok()
+        }
+    } else {
+        println!("redis failed to connect");
+    }
+
+    println!("Received stop command");
+    Ok(())
+}
