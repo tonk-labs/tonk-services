@@ -621,7 +621,7 @@ impl GameState {
                             demo_play: game.demo_play,
                             corrupted_players: game.corrupted_players,
                             time: Some(Time {
-                                timer: 150,
+                                timer: 180,
                                 round: time.round + 1
                             }),
                             win_result: None

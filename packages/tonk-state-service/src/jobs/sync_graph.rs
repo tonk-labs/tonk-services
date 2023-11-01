@@ -195,6 +195,9 @@ const CUBE_DIRECTION_VECTORS: [Cube; 6] = [
     Cube { q: 0, r: 1, s: -1 },
 ];
 
+pub trait MockClient {
+    fn get(&self, vars: PlayerVars) -> Option<Data>;
+}
 
 impl SyncGraph {
     pub fn new(redis: RedisHelper) -> Self {
@@ -364,7 +367,51 @@ impl SyncGraph {
         } else {
             Ok(())
         }
+    } 
 
+    pub async fn mock_run(&self, client: Box<dyn MockClient>) -> Result<(), JobError> {
+        let game: tonk_shared_lib::Game = self.redis.get_key("game").await?;
+        if game.status == tonk_shared_lib::GameStatus::End {
+            return Ok(());
+        }
+        let game_index = format!("game:{}:player_index", game.id);
+        let mut game_players: Vec<tonk_shared_lib::Player> = self.redis.get_index(&game_index).await?;
+        // let mut reg_players: Vec<tonk_shared_lib::Player> = self.redis.get_index("player:index").await?;
+        // print!("{:?}", reg_players);
+        let ids: Vec<String> = game_players.iter_mut().map(|p| p.mobile_unit_id.clone().unwrap_or("".to_string()) ).collect();
+        // println!("{:?}", ids);
+        if ids.len() == 0 {
+            // println!("{:?}", "skipping location update, no players in the game");
+            return Ok(());
+        }
 
+        let endpoint = env::var("DS_ENDPOINT").unwrap();
+        let vars = PlayerVars {
+            gameID: "DOWNSTREAM".to_string(),
+            ids,
+        };
+        let result: Option<Data> = client.get(vars);
+
+        let round = game.time.as_ref().unwrap().round;
+
+        if let Some(data) = result {
+            let player_locations = self.update_locations_player(&data, &game_players);
+            let player_proximities = self.calculate_distance(&game_players, &player_locations).await?;
+            for player in game_players {
+                // let player_key = format!("player:{}", player.id);
+                // println!("immunity for {:?}:{:?}", player.display_name, player.immune);
+                // SUPER hacky, but we're just going to do this for now to get the job done.
+                // if player.last_round_action.is_some() && *player.last_round_action.as_ref().unwrap() < round {
+                //     player.used_action = Some(false);
+                // }
+                // let _: () = self.redis.set_key(&player_key, &player).await?;
+                let proximity = player_proximities.get(&player.id).unwrap();
+                let proximity_key = format!("player:{}:proximity", player.id);
+                let _: () = self.redis.set_key(&proximity_key, &proximity).await?;
+            }
+            Ok(())
+        } else {
+            Ok(())
+        }
     } 
 }
