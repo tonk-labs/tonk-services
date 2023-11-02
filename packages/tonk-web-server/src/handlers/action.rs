@@ -40,6 +40,7 @@ pub async fn post_action(_id: web::Json<Action>, _query: web::Query<ActionQuery>
     let mut updated_player = player.clone();
 
     if *player.role.as_ref().unwrap() != Role::Bugged {
+        error!("Player submitted an action and they were not the bug: {:?}", player);
         return Err(actix_web::error::ErrorForbidden("You cannot take this action"));
     }
 
@@ -59,8 +60,10 @@ pub async fn post_action(_id: web::Json<Action>, _query: web::Query<ActionQuery>
 
     // we only care about these checks the first time around
     if target_is_near.is_none() && !action.confirmed {
+        error!("Player of id {} submitted an action and they were too far from the target", player.id);
         return Err(actix_web::error::ErrorForbidden("The target is not within range"));
     }
+    // println!("processing action {:?}", action);
     if !action.confirmed {
         let target_proximity_key = format!("player:{}:proximity", target_is_near.as_ref().unwrap().id);
         let target_proximity: PlayerProximity = redis.get_key(&target_proximity_key).await.map_err(|e| {
@@ -93,6 +96,7 @@ pub async fn post_action(_id: web::Json<Action>, _query: web::Query<ActionQuery>
             actix_web::error::ErrorInternalServerError("Unknown error")
         })?;
 
+        // println!("Setting ReturnToTower on player {:?}", updated_player.id);
         updated_player.used_action = Some(tonk_shared_lib::ActionStatus::ReturnToTower);
         redis.set_key(&player_key, &updated_player).await.map_err(|e| {
             error!("{:?}", e);
@@ -124,9 +128,13 @@ pub async fn post_action(_id: web::Json<Action>, _query: web::Query<ActionQuery>
                         }
                     }
                 }
+            } else {
+                error!("A player of id {} has already taken the action this round", player.id);
+                return Err(actix_web::error::ErrorForbidden("You have already taken an action this round"));
             }
+        } else {
+            return Err(actix_web::error::ErrorInternalServerError("Unknown error"));
         }
-        return Err(actix_web::error::ErrorForbidden("You have already taken an action this round"));
     }
 
     Ok(HttpResponse::Ok().finish())

@@ -1,4 +1,4 @@
-const { getGame, requestStart, requestJoin, sendVote, getPlayer, isInGame, getPlayers, registerPlayer, getTask, postTask, postAction } = require('../api');
+const { getGame, requestStart, requestJoin, sendVote, getPlayer, isInGame, getPlayers, registerPlayer, getTask, postTask, postAction, getLastRoundResult } = require('../api');
 const { i32ToHexTwosComplement, hexTwosComplementToI32, Cube, getRandomCoordinateAtDistance, cubeFromHex, sleep } = require('../utility');
 const { building_coords } = require('../setup');
 const { createClient } = require('redis');
@@ -227,8 +227,10 @@ async function run() {
 
     let tasks = [];
     let num_bugs = bugs.length;
-    let i = 0;
-    for (const civilian of civilians) {
+
+    // TASK ROUND
+    for (let i = 0; i < civilians.length; i++) {
+        let civilian = civilians[i];
         let task = await getTask({ id: civilian.id });
         tasks.push(task);
         await moveToTaskLocation(civilian, task, false);
@@ -236,44 +238,90 @@ async function run() {
         await postTask(task, civilian);
 
         await moveToTaskLocation(civilian, task, true);
-        await sleep(2000);
-        i += 1;
     }
-
-    i = 0;
-    for (const bug of bugs) {
-        await moveToPlayerLocation(bug, civilians[i]);
-        await sleep(2000);
-        await postAction({
-            id: civilians[i].id,
-            display_name: civilians[i].display_name
-        }, game, bugs[0], false)
-        await moveToTower(bug);
-        await sleep(2000);
-        await postAction({
-            id: civilians[i].id,
-            display_name: civilians[i].display_name
-        }, game, bug, true)
-        i += 1;
-    }
-
-    await moveToPlayerLocation(bugs[0], civilians[0]);
     await sleep(2000);
 
-    i = 0;
-    for (const civilian of civilians) {
+    for (let i = 0; i < bugs.length; i++) {
+        let bug = bugs[i];
+        await moveToPlayerLocation(bug, civilians[i]);
+    }
+    await sleep(2000);
+
+    for (let i = 0; i < bugs.length; i++) {
+        let bug = bugs[i];
+        let response = await postAction({
+            id: civilians[i].id,
+            display_name: civilians[i].display_name
+        }, game, bug, false)
+
+        await sleep(2000);
+        let updated_bug = await getPlayer(bug.id);
+        if (updated_bug.used_action !== "ReturnToTower") {
+            console.log(`Used action was not set correctly for ${updated_bug.id}, it was set to: ${updated_bug.used_action}`)
+            process.exit(-1);
+        }
+        await moveToTower(bug);
+    }
+
+    await sleep(2000);
+    for (let i = 0; i < bugs.length; i++) {
+        let bug = bugs[i];
+        let response = await postAction({
+            id: civilians[i].id,
+            display_name: civilians[i].display_name
+        }, game, bug, true);
+    }
+
+    for (let i = 0; i < civilians.length; i++) {
+        let civilian = civilians[i];
         let task = await getTask({ id: civilian.id });
         await postTask(task, civilian);
         await moveToTower(civilian);
-        await sleep(2000);
+    }
+
+    await sleep(2000);
+    for (let i = 0; i < civilians.length; i++) {
+        let civilian = civilians[i];
+        let task = await getTask({ id: civilian.id });
         await postTask(task, civilian);
-        i += 1;
+    }
+
+    // await clockToZero(game);
+    await sleep(10000);
+
+    game = await getGame();
+    console.log(JSON.stringify(game, null, 2));
+    if (game.status == "Lobby" || game.status == "Task") {
+        console.log("State didn't transition :/");
+        return;
+    }
+
+    const lastRound = await getLastRoundResult(game);
+    civilians = civilians.filter(c => typeof lastRound.eliminated.find(p => p.player.id == c.id) == 'undefined');
+    if (lastRound.eliminated.findIndex(p => p.player.role == null) >= 0) {
+        console.log(JSON.stringify(lastRound))
+        console.log("Quitting because role should not be null in the eliminated list");
+        return;
+    }
+
+    // VOTE STAGE
+    // At this stage, one or two of the civilians are killed which leaves 1,7 or 2,6 remaining
+    for (let i = 0; i < bugs.length; i++) {
+        let bug = bugs[i];
+        await sendVote(civilians[0].id, bug);
+    }
+
+    for (let i = 0; i < civilians.length; i++) {
+        let civilian = civilians[i];
+        if ( i == 0 ) {
+            // await sendVote(civilians[1]);
+        } else {
+            await sendVote(civilians[0].id, civilian);
+        }
     }
 
     game = await getGame();
-    await clockToZero(game)
-
-
+    await clockToZero(game);
 
     // let task_1 = await getTask({ id: civilians[0].id });
     // let task_2 = await getTask({ id: civilians[1].id });

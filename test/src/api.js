@@ -188,6 +188,7 @@ async function postAction(target, game, player, confirmed) {
       
       try {
         let response = await fetch(`${ENDPOINT}/action?player_id=${player.id}&secret_key=fff`, requestOptions)
+        return response;
       } catch (e) {
         console.log(e);
       }

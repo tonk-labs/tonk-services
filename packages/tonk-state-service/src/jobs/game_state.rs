@@ -141,6 +141,9 @@ impl GameState {
         let mut new_corrupted: Vec<Player> = Vec::new();
 
         let mut eliminations: HashSet<String> = HashSet::new();
+        // check for inactive players
+        let player_index_key = format!("game:{}:player_index", game.id);
+        let players: Vec<Player> = self.redis.get_index(&player_index_key).await.map_err(|e| JobError::RedisError )?;
 
         // we need to count all the players eliminated
         let actions: Vec<Action> = self.redis.get_index("game:actions").await.map_err(|e| JobError::RedisError)?;
@@ -148,8 +151,9 @@ impl GameState {
             a.interrupted_task
         }).map(|a| {
             eliminations.insert(a.poison_target.id.clone());
+            let eliminated_player = players.iter().find(|p| p.id == a.poison_target.id).unwrap_or(&a.poison_target);
             Elimination {
-                player: a.poison_target.clone(),
+                player: eliminated_player.clone(),
                 reason: EliminationReason::BuggedOut
             }
         }).collect();
@@ -178,10 +182,6 @@ impl GameState {
                 complete: t.complete 
             }
         }).collect();
-
-        // check for inactive players
-        let player_index_key = format!("game:{}:player_index", game.id);
-        let players: Vec<Player> = self.redis.get_index(&player_index_key).await.map_err(|e| JobError::RedisError )?;
 
         let inactive_players: Vec<Elimination> = players.iter().filter(|p| {
             p.used_action.is_some() && *p.used_action.as_ref().unwrap_or(&tonk_shared_lib::ActionStatus::Unused) != tonk_shared_lib::ActionStatus::TaskComplete
