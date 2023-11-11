@@ -64,6 +64,7 @@ pub struct Game {
     pub time: Option<Time>,
     pub win_result: Option<WinResult>,
     pub corrupted_players: Option<Vec<Player>>,
+    pub eliminated_players: Option<Vec<Elimination>>,
     pub demo_play: bool,
 }
 

@@ -42,6 +42,7 @@ impl GameState {
             status: GameStatus::Lobby,
             demo_play: false,
             corrupted_players: None,
+            eliminated_players: None,
             time: Some(Time {
                 timer: 0,
                 round: 0
@@ -318,7 +319,7 @@ impl GameState {
                 eliminated: None,
                 proximity: None,
                 role: None,
-                used_action: None,
+                used_action: Some(tonk_shared_lib::ActionStatus::Unused),
             };
             let player_key = format!("player:{}", player.id);
             let _ = self.redis.set_key(&player_key, &clean_player).await?;
@@ -334,6 +335,32 @@ impl GameState {
         }
         Ok(())
     }
+
+    async fn update_eliminated(&self, game: &Game) -> Result<Game, JobError> {
+            let result_key = format!("result:{}:{}", game.id, game.time.as_ref().unwrap().round);
+            let result: RoundResult = self.redis.get_key(&result_key).await?;
+
+            let mut new_elimination = game.eliminated_players.as_ref().unwrap_or(&Vec::new()).clone();
+            let mut new_game = game.clone();
+            
+
+            let mut found = false;
+            if result.eliminated.is_some() {
+                for elimination in result.eliminated.unwrap() {
+                    if new_elimination.iter().find(|e| e.player.id == elimination.player.id).is_none() {
+                        new_elimination.push(elimination);
+                        found = true;
+                    }
+                }
+            }
+
+            if found {
+                new_game.eliminated_players = Some(new_elimination);
+                self.redis.set_key("game", &new_game).await?;
+            }
+
+            Ok(new_game)
+    } 
 
     async fn reset_to_new_game(&self, game: &Game) -> Result<(), JobError> {
 
@@ -485,14 +512,16 @@ impl GameState {
                 }
 
                 if time.timer <= 0 {
-                    let new_game = self.set_task_result(&game).await?;
+                    let mut new_game = self.set_task_result(&game).await?;
                     let is_end = self.check_end_game_condition(&new_game).await?;
+                    new_game = self.update_eliminated(&new_game).await?;
                     self.reset_round(&new_game).await?;
                     if is_end != WinResult::Null {
                         let next_game = Game {
                             id: game.id.clone(),
                             status: GameStatus::End,
                             corrupted_players: new_game.corrupted_players,
+                            eliminated_players: new_game.eliminated_players,
                             demo_play: game.demo_play,
                             time: Some(Time {
                                 timer: 30,
@@ -506,6 +535,7 @@ impl GameState {
                             id: game.id,
                             status: GameStatus::Vote,
                             corrupted_players: new_game.corrupted_players,
+                            eliminated_players: new_game.eliminated_players,
                             demo_play: game.demo_play,
                             time: Some(Time {
                                 timer: 90,
@@ -534,6 +564,7 @@ impl GameState {
                             status: GameStatus::End,
                             demo_play: game.demo_play,
                             corrupted_players: game.corrupted_players,
+                            eliminated_players: game.eliminated_players,
                             time: Some(Time {
                                 timer: 30,
                                 round: time.round 
@@ -548,6 +579,7 @@ impl GameState {
                             status: GameStatus::Vote,
                             demo_play: game.demo_play,
                             corrupted_players: game.corrupted_players,
+                            eliminated_players: game.eliminated_players,
                             time: Some(Time {
                                 timer: 90,
                                 round: time.round + 1
@@ -579,6 +611,7 @@ impl GameState {
                         id: game.id,
                         status: GameStatus::VoteResult,
                         corrupted_players: new_game.corrupted_players,
+                        eliminated_players: new_game.eliminated_players,
                         demo_play: game.demo_play,
                         time: Some(Time {
                             timer: 30,
@@ -600,12 +633,14 @@ impl GameState {
                 if time.timer == 0 {
                     let is_end = self.check_end_game_condition(&game).await?;
                     self.reset_round(&game.clone()).await?;
+                    let new_game = self.update_eliminated(&game).await?;
                     if is_end != WinResult::Null {
                         let next_game = Game {
-                            id: game.id.clone(),
+                            id: new_game.id.clone(),
                             status: GameStatus::End,
-                            demo_play: game.demo_play,
-                            corrupted_players: game.corrupted_players,
+                            demo_play: new_game.demo_play,
+                            corrupted_players: new_game.corrupted_players,
+                            eliminated_players: new_game.eliminated_players,
                             time: Some(Time {
                                 timer: 30,
                                 round: time.round
@@ -615,10 +650,11 @@ impl GameState {
                         let _ = self.redis.set_key("game", &next_game).await?;
                     } else {
                         let next_game = Game {
-                            id: game.id.clone(),
+                            id: new_game.id.clone(),
                             status: GameStatus::Tasks,
-                            demo_play: game.demo_play,
-                            corrupted_players: game.corrupted_players,
+                            demo_play: new_game.demo_play,
+                            corrupted_players: new_game.corrupted_players,
+                            eliminated_players: new_game.eliminated_players,
                             time: Some(Time {
                                 timer: 180,
                                 round: time.round + 1

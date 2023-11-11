@@ -35,6 +35,7 @@ impl Clock {
                 status: game.status,
                 demo_play: game.demo_play,
                 corrupted_players: game.corrupted_players,
+                eliminated_players: game.eliminated_players,
                 time: Some(Time {
                     timer: time.timer - 1,
                     round: time.round
@@ -62,6 +63,7 @@ impl Clock {
                     status: clk.status,
                     demo_play: game.demo_play,
                     corrupted_players: game.corrupted_players,
+                    eliminated_players: game.eliminated_players,
                     time: Some(clk.time.clone()),
                     win_result: game.win_result 
                 };

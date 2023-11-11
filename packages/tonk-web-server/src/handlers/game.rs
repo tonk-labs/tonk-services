@@ -132,6 +132,7 @@ pub async fn get_game() -> Result<HttpResponse, Error> {
                 status: GameStatus::Null,
                 demo_play: false,
                 time: None,
+                eliminated_players: None,
                 win_result: None
             };
             Ok(HttpResponse::Ok().json(empty_game))
